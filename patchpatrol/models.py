@@ -5,21 +5,22 @@ This module provides automatic model downloading, caching, and management
 for PatchPatrol, making it truly standalone for CI/CD environments.
 """
 
-import os
-import json
 import hashlib
 import logging
-from pathlib import Path
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass
-from urllib.parse import urlparse
+import os
 import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class ModelInfo:
     """Information about a downloadable or API-based model."""
+
     name: str
     backend: str  # "onnx", "llama", or "gemini"
     url: Optional[str]  # None for API models
@@ -27,7 +28,7 @@ class ModelInfo:
     description: str
     sha256: Optional[str] = None
     filename: Optional[str] = None
-    requirements: Optional[List[str]] = None
+    requirements: Optional[list[str]] = None
     is_api: bool = False  # True for API-based models
 
     def __post_init__(self):
@@ -40,7 +41,7 @@ class ModelInfo:
 
 
 # Model registry - curated list of tested models
-MODEL_REGISTRY: Dict[str, ModelInfo] = {
+MODEL_REGISTRY: dict[str, ModelInfo] = {
     # Lightweight models for CI/CD
     "granite-3b-code": ModelInfo(
         name="granite-3b-code",
@@ -48,40 +49,36 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         url="https://huggingface.co/ibm-granite/granite-3b-code-instruct-GGUF/resolve/main/granite-3b-code-instruct.Q4_K_M.gguf",
         size_mb=1800,
         description="IBM Granite 3B - Fast, lightweight code model perfect for CI/CD",
-        sha256="a1b2c3d4e5f6789...",  # Would be real hash in production
-        requirements=["llama"]
+        sha256=None,  # Would be real hash in production
+        requirements=["llama"],
     ),
-
     "granite-8b-code": ModelInfo(
         name="granite-8b-code",
         backend="llama",
         url="https://huggingface.co/ibm-granite/granite-8b-code-instruct-GGUF/resolve/main/granite-8b-code-instruct.Q4_K_M.gguf",
         size_mb=4500,
         description="IBM Granite 8B - Balanced quality and performance",
-        sha256="b2c3d4e5f6789...",
-        requirements=["llama"]
+        sha256=None,
+        requirements=["llama"],
     ),
-
     "codellama-7b": ModelInfo(
         name="codellama-7b",
         backend="llama",
         url="https://huggingface.co/TheBloke/CodeLlama-7B-Instruct-GGUF/resolve/main/codellama-7b-instruct.q4_k_m.gguf",
         size_mb=4100,
         description="Meta CodeLlama 7B - Excellent for code review",
-        sha256="c3d4e5f6789...",
-        requirements=["llama"]
+        sha256=None,
+        requirements=["llama"],
     ),
-
     "codegemma-2b": ModelInfo(
         name="codegemma-2b",
         backend="llama",
         url="https://huggingface.co/google/codegemma-2b-it-GGUF/resolve/main/codegemma-2b-it.q4_k_m.gguf",
         size_mb=1600,
         description="Google CodeGemma 2B - Ultra-fast for quick reviews",
-        sha256="d4e5f6789...",
-        requirements=["llama"]
+        sha256=None,
+        requirements=["llama"],
     ),
-
     # ONNX models (smaller examples)
     "distilgpt2-onnx": ModelInfo(
         name="distilgpt2-onnx",
@@ -89,50 +86,75 @@ MODEL_REGISTRY: Dict[str, ModelInfo] = {
         url="https://huggingface.co/optimum/distilgpt2/resolve/main/model.onnx",
         size_mb=350,
         description="DistilGPT2 ONNX - Lightweight for basic reviews",
-        sha256="e5f6789...",
-        requirements=["onnx"]
+        sha256=None,
+        requirements=["onnx"],
     ),
-
-    # Gemini API models
-    "gemini-pro": ModelInfo(
-        name="gemini-pro",
+    # Gemini API models - Latest working series (2.0)
+    "gemini-2.0-flash-exp": ModelInfo(
+        name="gemini-2.0-flash-exp",
         backend="gemini",
         url=None,  # API model
         size_mb=0,  # No local storage
-        description="Google Gemini Pro - High-quality cloud-based code review",
+        description="Google Gemini 2.0 Flash Experimental - Latest experimental model with advanced capabilities",
         is_api=True,
-        requirements=["gemini"]
+        requirements=["gemini"],
     ),
-
+    "gemini-2.0-flash": ModelInfo(
+        name="gemini-2.0-flash",
+        backend="gemini",
+        url=None,  # API model
+        size_mb=0,  # No local storage
+        description="Google Gemini 2.0 Flash - Stable fast model with enhanced performance",
+        is_api=True,
+        requirements=["gemini"],
+    ),
+    # Future Gemini models (listed but access restricted)
+    "gemini-2.5-pro": ModelInfo(
+        name="gemini-2.5-pro",
+        backend="gemini",
+        url=None,  # API model
+        size_mb=0,  # No local storage
+        description="Google Gemini 2.5 Pro - Future high-capability model (requires special access)",
+        is_api=True,
+        requirements=["gemini"],
+    ),
+    "gemini-2.5-flash": ModelInfo(
+        name="gemini-2.5-flash",
+        backend="gemini",
+        url=None,  # API model
+        size_mb=0,  # No local storage
+        description="Google Gemini 2.5 Flash - Future fast model (requires special access)",
+        is_api=True,
+        requirements=["gemini"],
+    ),
     "gemini-1.5-pro": ModelInfo(
         name="gemini-1.5-pro",
         backend="gemini",
         url=None,  # API model
         size_mb=0,  # No local storage
-        description="Google Gemini 1.5 Pro - Latest model with enhanced capabilities",
+        description="Google Gemini 1.5 Pro - Legacy stable model",
         is_api=True,
-        requirements=["gemini"]
+        requirements=["gemini"],
     ),
-
     "gemini-1.5-flash": ModelInfo(
         name="gemini-1.5-flash",
         backend="gemini",
         url=None,  # API model
         size_mb=0,  # No local storage
-        description="Google Gemini 1.5 Flash - Fast, cost-effective cloud reviews",
+        description="Google Gemini 1.5 Flash - Legacy fast model",
         is_api=True,
-        requirements=["gemini"]
+        requirements=["gemini"],
     ),
 }
 
 # Default models for different use cases
 DEFAULT_MODELS = {
-    "ci": "granite-3b-code",      # Fast for CI/CD
-    "dev": "granite-3b-code",     # Good for development
-    "quality": "codellama-7b",    # Best quality
-    "minimal": "codegemma-2b",    # Smallest/fastest
-    "cloud": "gemini-1.5-flash",  # Fast cloud-based option
-    "premium": "gemini-1.5-pro",  # High-quality cloud option
+    "ci": "granite-3b-code",  # Fast for CI/CD
+    "dev": "granite-3b-code",  # Good for development
+    "quality": "codellama-7b",  # Best quality
+    "minimal": "codegemma-2b",  # Smallest/fastest
+    "cloud": "gemini-2.0-flash",  # Fast cloud-based option with latest working AI
+    "premium": "gemini-2.0-flash-exp",  # Premium cloud with experimental features
 }
 
 
@@ -157,18 +179,18 @@ class ModelManager:
 
     def _get_default_cache_dir(self) -> str:
         """Get default cache directory based on OS."""
-        if os.name == 'nt':  # Windows
-            base = os.environ.get('APPDATA', os.path.expanduser('~'))
-            return os.path.join(base, 'PatchPatrol', 'models')
+        if os.name == "nt":  # Windows
+            base = os.environ.get("APPDATA", os.path.expanduser("~"))
+            return os.path.join(base, "PatchPatrol", "models")
         else:  # Unix-like
-            base = os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
-            return os.path.join(base, 'patchpatrol', 'models')
+            base = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+            return os.path.join(base, "patchpatrol", "models")
 
-    def list_available_models(self) -> Dict[str, ModelInfo]:
+    def list_available_models(self) -> dict[str, ModelInfo]:
         """Get list of all available models."""
         return MODEL_REGISTRY.copy()
 
-    def list_cached_models(self) -> List[str]:
+    def list_cached_models(self) -> list[str]:
         """Get list of locally cached models."""
         cached = []
         for model_name in MODEL_REGISTRY.keys():
@@ -297,28 +319,33 @@ class ModelManager:
         """Download file with progress indicator."""
         try:
             # Try using wget first (shows progress)
-            result = subprocess.run([
-                'wget', '--progress=bar', '--show-progress',
-                '-O', output_path, url
-            ], capture_output=True, text=True, timeout=3600)
+            result = subprocess.run(
+                ["wget", "--progress=bar", "--show-progress", "-O", output_path, url],
+                capture_output=True,
+                text=True,
+                timeout=3600,
+            )
 
             if result.returncode != 0:
-                raise subprocess.CalledProcessError(result.returncode, 'wget')
+                raise subprocess.CalledProcessError(result.returncode, "wget")
 
         except (subprocess.CalledProcessError, FileNotFoundError):
             # Fallback to curl
             try:
-                result = subprocess.run([
-                    'curl', '-L', '--progress-bar',
-                    '-o', output_path, url
-                ], capture_output=True, text=True, timeout=3600)
+                result = subprocess.run(
+                    ["curl", "-L", "--progress-bar", "-o", output_path, url],
+                    capture_output=True,
+                    text=True,
+                    timeout=3600,
+                )
 
                 if result.returncode != 0:
-                    raise subprocess.CalledProcessError(result.returncode, 'curl')
+                    raise subprocess.CalledProcessError(result.returncode, "curl")
 
             except (subprocess.CalledProcessError, FileNotFoundError):
                 # Final fallback to Python urllib
                 import urllib.request
+
                 urllib.request.urlretrieve(url, output_path)
 
     def _validate_file_hash(self, file_path: str, expected_hash: str) -> bool:
@@ -336,14 +363,9 @@ class ModelManager:
     def _download_onnx_files(self, model_info: ModelInfo, model_dir: Path) -> None:
         """Download additional files needed for ONNX models."""
         # For ONNX models, we typically need config.json and tokenizer files
-        base_url = model_info.url.rsplit('/', 1)[0]
+        base_url = model_info.url.rsplit("/", 1)[0]
 
-        additional_files = [
-            'config.json',
-            'tokenizer.json',
-            'tokenizer_config.json',
-            'vocab.txt'
-        ]
+        additional_files = ["config.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt"]
 
         for filename in additional_files:
             file_url = f"{base_url}/{filename}"
@@ -384,6 +406,7 @@ class ModelManager:
 
         try:
             import shutil
+
             shutil.rmtree(model_dir)
             logger.info(f"Removed cached model: {model_name}")
             return True
@@ -391,7 +414,7 @@ class ModelManager:
             logger.error(f"Failed to remove model {model_name}: {e}")
             return False
 
-    def clean_cache(self, keep_models: Optional[List[str]] = None) -> int:
+    def clean_cache(self, keep_models: Optional[list[str]] = None) -> int:
         """
         Clean the model cache.
 
@@ -416,7 +439,7 @@ class ModelManager:
         """Get total size of model cache in bytes."""
         total_size = 0
 
-        for root, dirs, files in os.walk(self.cache_dir):
+        for root, _dirs, files in os.walk(self.cache_dir):
             for file in files:
                 file_path = os.path.join(root, file)
                 if os.path.exists(file_path):
@@ -427,6 +450,7 @@ class ModelManager:
 
 # Global model manager instance
 _model_manager = None
+
 
 def get_model_manager() -> ModelManager:
     """Get global model manager instance."""
@@ -441,7 +465,7 @@ def get_model_path(model_name: str) -> str:
     return get_model_manager().get_model_path(model_name)
 
 
-def list_models() -> Dict[str, ModelInfo]:
+def list_models() -> dict[str, ModelInfo]:
     """Convenience function to list available models."""
     return get_model_manager().list_available_models()
 

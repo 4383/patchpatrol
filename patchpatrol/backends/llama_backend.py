@@ -4,18 +4,19 @@ llama.cpp backend for AI inference.
 This module implements the llama.cpp backend using llama-cpp-python
 for local GGUF model execution.
 """
+# mypy: disable-error-code=unreachable
 
-import os
 import logging
-from typing import Optional, Dict, Any, List
 from pathlib import Path
+from typing import Any, Optional
 
-from .base import BaseBackend, ModelLoadError, InferenceError
+from .base import BaseBackend, InferenceError, ModelLoadError
 
 logger = logging.getLogger(__name__)
 
 try:
     from llama_cpp import Llama
+
     LLAMA_AVAILABLE = True
 except ImportError:
     LLAMA_AVAILABLE = False
@@ -39,7 +40,7 @@ class LlamaBackend(BaseBackend):
         n_ctx: int = 4096,
         n_gpu_layers: int = 0,
         n_threads: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize llama.cpp backend.
@@ -76,7 +77,7 @@ class LlamaBackend(BaseBackend):
         if not model_path.is_file():
             raise ModelLoadError(f"Model path must be a file: {self.model_path}")
 
-        if not model_path.suffix.lower() in ['.gguf', '.ggml']:
+        if model_path.suffix.lower() not in [".gguf", ".ggml"]:
             logger.warning(
                 f"Model file {self.model_path} does not have .gguf extension. "
                 "This may not be a valid llama.cpp model."
@@ -145,31 +146,32 @@ class LlamaBackend(BaseBackend):
             # Format as chat messages
             messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ]
 
             # Use chat completion interface
-            response = self._model.create_chat_completion(
+            response = self._model.create_chat_completion(  # type: ignore[attr-defined]
                 messages=messages,
                 max_tokens=self.max_new_tokens,
                 temperature=self.temperature,
                 top_p=self.top_p,
                 frequency_penalty=0.1,  # Reduce repetition
-                presence_penalty=0.1,   # Encourage diversity
+                presence_penalty=0.1,  # Encourage diversity
                 stop=None,  # Let model decide when to stop
                 stream=False,
             )
 
             # Extract the response content
-            if (response and
-                "choices" in response and
-                len(response["choices"]) > 0 and
-                "message" in response["choices"][0] and
-                "content" in response["choices"][0]["message"]):
-
+            if (
+                response
+                and "choices" in response
+                and len(response["choices"]) > 0
+                and "message" in response["choices"][0]
+                and "content" in response["choices"][0]["message"]
+            ):
                 content = response["choices"][0]["message"]["content"].strip()
                 logger.debug(f"Generated response length: {len(content)} characters")
-                return content
+                return content  # type: ignore[no-any-return]
             else:
                 raise InferenceError("Invalid response format from llama.cpp")
 
@@ -188,25 +190,29 @@ class LlamaBackend(BaseBackend):
         self._is_loaded = False
         logger.info("llama.cpp model unloaded")
 
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         """Get detailed information about the llama.cpp backend."""
         info = super().get_info()
-        info.update({
-            "n_ctx": self.n_ctx,
-            "n_gpu_layers": self.n_gpu_layers,
-            "n_threads": self.n_threads,
-            "llama_available": LLAMA_AVAILABLE,
-        })
+        info.update(
+            {
+                "n_ctx": self.n_ctx,
+                "n_gpu_layers": self.n_gpu_layers,
+                "n_threads": self.n_threads,
+                "llama_available": LLAMA_AVAILABLE,
+            }
+        )
 
         if self.is_loaded() and self._model:
             # Get model metadata if available
             try:
                 # llama.cpp models may have metadata
-                if hasattr(self._model, 'metadata'):
+                if hasattr(self._model, "metadata"):
                     metadata = self._model.metadata
-                    info.update({
-                        "model_metadata": metadata,
-                    })
+                    info.update(
+                        {
+                            "model_metadata": metadata,
+                        }
+                    )
             except Exception:
                 pass  # Metadata is optional
 

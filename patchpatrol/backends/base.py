@@ -5,25 +5,28 @@ This module defines the common interface that all backend implementations
 must follow for consistent behavior across ONNX and llama.cpp engines.
 """
 
-from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
 import logging
+from abc import ABC, abstractmethod
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class BackendError(Exception):
     """Base exception for backend-related errors."""
+
     pass
 
 
 class ModelLoadError(BackendError):
     """Raised when model loading fails."""
+
     pass
 
 
 class InferenceError(BackendError):
     """Raised when inference fails."""
+
     pass
 
 
@@ -42,7 +45,7 @@ class BaseBackend(ABC):
         temperature: float = 0.2,
         max_new_tokens: int = 512,
         top_p: float = 0.9,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize the backend with common parameters.
@@ -104,7 +107,7 @@ class BaseBackend(ABC):
         """Check if the model is currently loaded."""
         return self._is_loaded
 
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         """
         Get information about the backend and model.
 
@@ -172,6 +175,7 @@ def get_backend(backend_type: str, **kwargs) -> BaseBackend:
     if backend_type == "onnx":
         try:
             from .onnx_backend import ONNXBackend
+
             return ONNXBackend(**kwargs)
         except ImportError as e:
             raise ImportError(
@@ -182,6 +186,7 @@ def get_backend(backend_type: str, **kwargs) -> BaseBackend:
     elif backend_type == "llama":
         try:
             from .llama_backend import LlamaBackend
+
             return LlamaBackend(**kwargs)
         except ImportError as e:
             raise ImportError(
@@ -192,6 +197,7 @@ def get_backend(backend_type: str, **kwargs) -> BaseBackend:
     elif backend_type == "gemini":
         try:
             from .gemini_backend import GeminiBackend
+
             return GeminiBackend(**kwargs)
         except ImportError as e:
             raise ImportError(

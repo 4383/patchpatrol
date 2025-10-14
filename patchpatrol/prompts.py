@@ -19,7 +19,7 @@ You MUST return a single JSON object with this exact structure:
 Where:
 - `score`: A float between 0.0 and 1.0 reflecting overall quality (1.0 = excellent, 0.0 = needs major work)
 - `verdict`: Either "approve" (if commit meets standards) or "revise" (if changes needed)
-- `comments`: Array of brief, actionable suggestions for improvement (max 3-5 items)
+- `comments`: Array of actionable feedback and suggestions (provide only relevant insights based on what you observe)
 
 Evaluation criteria:
 - Code quality: structure, naming, safety, performance implications
@@ -28,6 +28,12 @@ Evaluation criteria:
 - Breaking changes: compatibility and migration considerations
 - Commit message: clarity, conventional format, alignment with changes
 - Security: potential vulnerabilities or sensitive data exposure
+
+Guidelines for comments:
+- Simple changes: 1-2 comments if there are only minor observations
+- Complex changes: More comments if multiple areas need attention
+- Perfect code: Empty array if no improvements needed
+- Focus quality over quantity - only mention what's actually relevant
 
 Only return the JSON object, with no additional text or explanations."""
 
@@ -106,10 +112,13 @@ PROMPT_CONFIG = {
     "max_diff_length": 200000,  # Truncate diffs longer than this
     "max_message_length": 2000,  # Truncate messages longer than this
     "default_temperature": 0.2,  # Low temperature for consistency
-    "default_max_tokens": 512,   # Sufficient for JSON response
+    "default_max_tokens": 512,  # Sufficient for JSON response
 }
 
-def truncate_diff(diff_content: str, max_length: int = PROMPT_CONFIG["max_diff_length"]) -> str:
+
+def truncate_diff(
+    diff_content: str, max_length: int = int(PROMPT_CONFIG["max_diff_length"])
+) -> str:
     """
     Truncate diff content if it exceeds max_length to avoid token overflow.
 
@@ -125,13 +134,16 @@ def truncate_diff(diff_content: str, max_length: int = PROMPT_CONFIG["max_diff_l
 
     truncated = diff_content[:max_length]
     # Try to cut at a line boundary
-    last_newline = truncated.rfind('\n')
+    last_newline = truncated.rfind("\n")
     if last_newline > max_length * 0.8:  # If we can find a reasonable cutoff
         truncated = truncated[:last_newline]
 
     return truncated + "\n\n[... DIFF TRUNCATED DUE TO LENGTH ...]"
 
-def truncate_message(message: str, max_length: int = PROMPT_CONFIG["max_message_length"]) -> str:
+
+def truncate_message(
+    message: str, max_length: int = int(PROMPT_CONFIG["max_message_length"])
+) -> str:
     """
     Truncate commit message if it exceeds max_length.
 

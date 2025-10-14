@@ -58,7 +58,7 @@ pip install patchpatrol[all]
 
    # Backend is auto-detected, or specify explicitly
    patchpatrol review-changes --backend llama --model codellama-7b
-   patchpatrol review-changes --backend gemini --model gemini-pro
+   patchpatrol review-changes --backend gemini --model gemini-2.0-flash-exp
    ```
 
 3. **Add to your pre-commit config:**
@@ -245,9 +245,9 @@ PatchPatrol includes a curated registry of tested models that download automatic
 | `codellama-7b` | llama | ~4.1GB | Meta CodeLlama 7B - Excellent accuracy | High-quality reviews |
 | `codegemma-2b` | llama | ~1.6GB | Google CodeGemma 2B - Ultra-fast | Speed-critical environments |
 | `distilgpt2-onnx` | onnx | ~350MB | DistilGPT2 ONNX - Minimal size | Resource-constrained environments |
-| `gemini-pro` | gemini | API | Google Gemini Pro - High-quality cloud | No local storage needed |
-| `gemini-1.5-pro` | gemini | API | Google Gemini 1.5 Pro - Latest model | Advanced code analysis |
-| `gemini-1.5-flash` | gemini | API | Google Gemini 1.5 Flash - Fast cloud | Quick cloud reviews |
+| `gemini-2.0-flash-exp` | gemini | API | Google Gemini 2.0 Flash Experimental - Latest experimental model | Advanced code analysis |
+| `gemini-2.0-flash` | gemini | API | Google Gemini 2.0 Flash - Stable fast model | Quick cloud reviews |
+| `gemini-2.5-pro` | gemini | API | Google Gemini 2.5 Pro - Future model (restricted access) | Future advanced analysis |
 
 ### Quick Access Aliases
 
@@ -257,8 +257,8 @@ PatchPatrol includes a curated registry of tested models that download automatic
 | `dev` | `granite-3b-code` | Development workflow |
 | `quality` | `codellama-7b` | High-quality analysis |
 | `minimal` | `codegemma-2b` | Smallest/fastest option |
-| `cloud` | `gemini-1.5-flash` | Fast cloud-based reviews |
-| `premium` | `gemini-1.5-pro` | Premium cloud analysis |
+| `cloud` | `gemini-2.0-flash` | Fast cloud-based reviews |
+| `premium` | `gemini-2.0-flash-exp` | Premium cloud analysis |
 
 ### Model Management
 
@@ -322,8 +322,8 @@ export GEMINI_API_KEY="your-api-key-here"
 patchpatrol test-gemini
 
 # Use in reviews
-patchpatrol review-changes --model gemini-pro
-patchpatrol review-changes --model cloud  # Uses gemini-1.5-flash
+patchpatrol review-changes --model gemini-2.0-flash-exp
+patchpatrol review-changes --model cloud  # Uses gemini-2.0-flash
 ```
 
 **Get your API key**: [Google AI Studio](https://makersuite.google.com/app/apikey)
@@ -421,7 +421,7 @@ patchpatrol review-changes \
 # Cloud-based with Gemini
 GEMINI_API_KEY="your-key" patchpatrol review-changes \
   --backend gemini \
-  --model gemini-1.5-pro \
+  --model gemini-2.0-flash-exp \
   --temperature 0.1
 ```
 
@@ -432,7 +432,7 @@ Create `.patchpatrol.toml`:
 ```toml
 [patchpatrol]
 backend = "gemini"         # Can be "onnx", "llama", or "gemini"
-model = "gemini-1.5-pro"   # Model name from registry
+model = "gemini-2.0-flash-exp"   # Model name from registry
 threshold = 0.8
 device = "cuda"            # Ignored for API models
 soft_mode = false

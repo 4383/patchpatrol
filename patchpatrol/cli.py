@@ -5,28 +5,35 @@ This module provides the main CLI commands for AI-powered commit review,
 including review-changes and review-message for pre-commit hooks.
 """
 
+import logging
 import os
 import sys
-import logging
-from typing import Optional, Tuple
+import warnings
+from typing import Optional
+
 import click
 
-from rich.console import Console
-from rich.logging import RichHandler
-from rich.table import Table
+# Suppress Google AI library warnings before any imports
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+os.environ["GRPC_TRACE"] = ""
+os.environ["GLOG_minloglevel"] = "2"
 
-from .backends.base import get_backend, BackendError
-from .utils.git_utils import GitRepository, GitError
-from .utils.parsing import parse_json_response, format_review_output, ReviewResult
-from .models import get_model_manager, get_model_path, list_models, MODEL_REGISTRY, DEFAULT_MODELS
-from .prompts import (
+from rich.console import Console  # noqa: E402
+from rich.logging import RichHandler  # noqa: E402
+from rich.table import Table  # noqa: E402
+
+from .backends.base import BackendError, get_backend  # noqa: E402
+from .models import DEFAULT_MODELS, MODEL_REGISTRY, get_model_manager, get_model_path  # noqa: E402
+from .prompts import (  # noqa: E402
     SYSTEM_REVIEWER,
     USER_TEMPLATE_CHANGES,
-    USER_TEMPLATE_MESSAGE,
     USER_TEMPLATE_COMPLETE,
+    USER_TEMPLATE_MESSAGE,
     truncate_diff,
     truncate_message,
 )
+from .utils.git_utils import GitError, GitRepository  # noqa: E402
+from .utils.parsing import ReviewResult, format_review_output, parse_json_response  # noqa: E402
 
 # Initialize rich console
 console = Console()
@@ -40,22 +47,35 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def suppress_google_warnings():
+    """Suppress verbose Google AI library warnings."""
+    # Suppress gRPC/ALTS warnings that appear when using Gemini API
+    os.environ["GRPC_VERBOSITY"] = "ERROR"
+    os.environ["GRPC_TRACE"] = ""
+    os.environ["GLOG_minloglevel"] = "2"
+
+    # Suppress specific Google library warnings
+    warnings.filterwarnings("ignore", category=UserWarning, module="google.*")
+    warnings.filterwarnings("ignore", message=".*ALTS.*")
+
+    # Set absl logging to only show errors
+    try:
+        import absl.logging
+
+        absl.logging.set_verbosity(absl.logging.ERROR)
+    except ImportError:
+        pass
+
+
 class CLIError(Exception):
     """Base exception for CLI-related errors."""
+
     pass
 
 
 @click.group()
-@click.option(
-    "--verbose", "-v",
-    is_flag=True,
-    help="Enable verbose logging"
-)
-@click.option(
-    "--quiet", "-q",
-    is_flag=True,
-    help="Suppress non-essential output"
-)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
+@click.option("--quiet", "-q", is_flag=True, help="Suppress non-essential output")
 @click.pass_context
 def main(ctx, verbose: bool, quiet: bool):
     """
@@ -77,11 +97,7 @@ def main(ctx, verbose: bool, quiet: bool):
 
 # Model management commands
 @main.command("list-models")
-@click.option(
-    "--cached-only",
-    is_flag=True,
-    help="Show only cached models"
-)
+@click.option("--cached-only", is_flag=True, help="Show only cached models")
 def list_models_cmd(cached_only: bool):
     """List available models."""
     manager = get_model_manager()
@@ -113,13 +129,7 @@ def list_models_cmd(cached_only: bool):
         is_cached = "✓" if model_name in cached_models else "✗"
         size_str = f"{model_info.size_mb}MB"
 
-        table.add_row(
-            model_name,
-            model_info.backend,
-            size_str,
-            model_info.description,
-            is_cached
-        )
+        table.add_row(model_name, model_info.backend, size_str, model_info.description, is_cached)
 
     console.print(table)
 
@@ -131,11 +141,7 @@ def list_models_cmd(cached_only: bool):
 
 @main.command("download-model")
 @click.argument("model_name")
-@click.option(
-    "--force",
-    is_flag=True,
-    help="Force re-download even if cached"
-)
+@click.option("--force", is_flag=True, help="Force re-download even if cached")
 def download_model_cmd(model_name: str, force: bool):
     """Download a model to local cache."""
     manager = get_model_manager()
@@ -160,11 +166,7 @@ def download_model_cmd(model_name: str, force: bool):
 
 @main.command("remove-model")
 @click.argument("model_name")
-@click.option(
-    "--yes", "-y",
-    is_flag=True,
-    help="Skip confirmation"
-)
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def remove_model_cmd(model_name: str, yes: bool):
     """Remove a cached model."""
     manager = get_model_manager()
@@ -212,16 +214,8 @@ def cache_info_cmd():
 
 
 @main.command("clean-cache")
-@click.option(
-    "--keep",
-    multiple=True,
-    help="Models to keep (remove all others)"
-)
-@click.option(
-    "--yes", "-y",
-    is_flag=True,
-    help="Skip confirmation"
-)
+@click.option("--keep", multiple=True, help="Models to keep (remove all others)")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def clean_cache_cmd(keep: tuple, yes: bool):
     """Clean the model cache."""
     manager = get_model_manager()
@@ -254,12 +248,11 @@ def clean_cache_cmd(keep: tuple, yes: bool):
 
 
 @main.command("test-gemini")
-@click.option(
-    "--api-key",
-    help="Gemini API key (uses GEMINI_API_KEY env var if not provided)"
-)
+@click.option("--api-key", help="Gemini API key (uses GEMINI_API_KEY env var if not provided)")
 def test_gemini_cmd(api_key: Optional[str]):
     """Test Gemini API connectivity."""
+    suppress_google_warnings()
+
     try:
         from .backends.gemini_backend import test_gemini_connection
 
@@ -270,7 +263,9 @@ def test_gemini_cmd(api_key: Optional[str]):
             console.print("\nTroubleshooting:")
             console.print("1. Check your API key: https://makersuite.google.com/app/apikey")
             console.print("2. Set GEMINI_API_KEY environment variable")
-            console.print("3. Ensure you have google-generativeai installed: pip install patchpatrol[gemini]")
+            console.print(
+                "3. Ensure you have google-generativeai installed: pip install patchpatrol[gemini]"
+            )
             sys.exit(1)
 
     except ImportError:
@@ -284,55 +279,53 @@ def test_gemini_cmd(api_key: Optional[str]):
 
 @main.command("review-changes")
 @click.option(
-    "--backend", "-b",
+    "--backend",
+    "-b",
     type=click.Choice(["onnx", "llama", "gemini"], case_sensitive=False),
     default=None,
-    help="AI inference backend (auto-detected from model if not specified)"
+    help="AI inference backend (auto-detected from model if not specified)",
 )
 @click.option(
-    "--model", "-m",
+    "--model",
+    "-m",
     required=True,
-    help="Model name (from registry) or path to model file/directory"
+    help="Model name (from registry) or path to model file/directory",
 )
 @click.option(
     "--device",
     type=click.Choice(["cpu", "cuda"], case_sensitive=False),
     default="cpu",
-    help="Compute device for inference"
+    help="Compute device for inference",
 )
 @click.option(
-    "--threshold", "-t",
+    "--threshold",
+    "-t",
     type=click.FloatRange(0.0, 1.0),
     default=0.7,
-    help="Minimum acceptance score (0.0-1.0)"
+    help="Minimum acceptance score (0.0-1.0)",
 )
 @click.option(
     "--temperature",
     type=click.FloatRange(0.0, 1.0),
     default=0.2,
-    help="Sampling temperature for generation"
+    help="Sampling temperature for generation",
 )
 @click.option(
     "--max-new-tokens",
     type=click.IntRange(min=1),
     default=512,
-    help="Maximum new tokens to generate"
+    help="Maximum new tokens to generate",
 )
 @click.option(
-    "--top-p",
-    type=click.FloatRange(0.0, 1.0),
-    default=0.9,
-    help="Top-p sampling parameter"
+    "--top-p", type=click.FloatRange(0.0, 1.0), default=0.9, help="Top-p sampling parameter"
 )
 @click.option(
-    "--soft/--hard",
-    default=True,
-    help="Soft mode (warnings) vs hard mode (blocking errors)"
+    "--soft/--hard", default=True, help="Soft mode (warnings) vs hard mode (blocking errors)"
 )
 @click.option(
     "--repo-path",
     type=click.Path(exists=True),
-    help="Path to Git repository (default: current directory)"
+    help="Path to Git repository (default: current directory)",
 )
 def review_changes(
     backend: Optional[str],
@@ -373,55 +366,53 @@ def review_changes(
 
 @main.command("review-message")
 @click.option(
-    "--backend", "-b",
+    "--backend",
+    "-b",
     type=click.Choice(["onnx", "llama", "gemini"], case_sensitive=False),
     default=None,
-    help="AI inference backend (auto-detected from model if not specified)"
+    help="AI inference backend (auto-detected from model if not specified)",
 )
 @click.option(
-    "--model", "-m",
+    "--model",
+    "-m",
     required=True,
-    help="Model name (from registry) or path to model file/directory"
+    help="Model name (from registry) or path to model file/directory",
 )
 @click.option(
     "--device",
     type=click.Choice(["cpu", "cuda"], case_sensitive=False),
     default="cpu",
-    help="Compute device for inference"
+    help="Compute device for inference",
 )
 @click.option(
-    "--threshold", "-t",
+    "--threshold",
+    "-t",
     type=click.FloatRange(0.0, 1.0),
     default=0.7,
-    help="Minimum acceptance score (0.0-1.0)"
+    help="Minimum acceptance score (0.0-1.0)",
 )
 @click.option(
     "--temperature",
     type=click.FloatRange(0.0, 1.0),
     default=0.2,
-    help="Sampling temperature for generation"
+    help="Sampling temperature for generation",
 )
 @click.option(
     "--max-new-tokens",
     type=click.IntRange(min=1),
     default=512,
-    help="Maximum new tokens to generate"
+    help="Maximum new tokens to generate",
 )
 @click.option(
-    "--top-p",
-    type=click.FloatRange(0.0, 1.0),
-    default=0.9,
-    help="Top-p sampling parameter"
+    "--top-p", type=click.FloatRange(0.0, 1.0), default=0.9, help="Top-p sampling parameter"
 )
 @click.option(
-    "--soft/--hard",
-    default=True,
-    help="Soft mode (warnings) vs hard mode (blocking errors)"
+    "--soft/--hard", default=True, help="Soft mode (warnings) vs hard mode (blocking errors)"
 )
 @click.option(
     "--repo-path",
     type=click.Path(exists=True),
-    help="Path to Git repository (default: current directory)"
+    help="Path to Git repository (default: current directory)",
 )
 @click.argument("commit_msg_file", required=False)
 def review_message(
@@ -467,55 +458,53 @@ def review_message(
 
 @main.command("review-complete")
 @click.option(
-    "--backend", "-b",
+    "--backend",
+    "-b",
     type=click.Choice(["onnx", "llama", "gemini"], case_sensitive=False),
     default=None,
-    help="AI inference backend (auto-detected from model if not specified)"
+    help="AI inference backend (auto-detected from model if not specified)",
 )
 @click.option(
-    "--model", "-m",
+    "--model",
+    "-m",
     required=True,
-    help="Model name (from registry) or path to model file/directory"
+    help="Model name (from registry) or path to model file/directory",
 )
 @click.option(
     "--device",
     type=click.Choice(["cpu", "cuda"], case_sensitive=False),
     default="cpu",
-    help="Compute device for inference"
+    help="Compute device for inference",
 )
 @click.option(
-    "--threshold", "-t",
+    "--threshold",
+    "-t",
     type=click.FloatRange(0.0, 1.0),
     default=0.7,
-    help="Minimum acceptance score (0.0-1.0)"
+    help="Minimum acceptance score (0.0-1.0)",
 )
 @click.option(
     "--temperature",
     type=click.FloatRange(0.0, 1.0),
     default=0.2,
-    help="Sampling temperature for generation"
+    help="Sampling temperature for generation",
 )
 @click.option(
     "--max-new-tokens",
     type=click.IntRange(min=1),
     default=512,
-    help="Maximum new tokens to generate"
+    help="Maximum new tokens to generate",
 )
 @click.option(
-    "--top-p",
-    type=click.FloatRange(0.0, 1.0),
-    default=0.9,
-    help="Top-p sampling parameter"
+    "--top-p", type=click.FloatRange(0.0, 1.0), default=0.9, help="Top-p sampling parameter"
 )
 @click.option(
-    "--soft/--hard",
-    default=True,
-    help="Soft mode (warnings) vs hard mode (blocking errors)"
+    "--soft/--hard", default=True, help="Soft mode (warnings) vs hard mode (blocking errors)"
 )
 @click.option(
     "--repo-path",
     type=click.Path(exists=True),
-    help="Path to Git repository (default: current directory)"
+    help="Path to Git repository (default: current directory)",
 )
 @click.argument("commit_msg_file", required=False)
 def review_complete(
@@ -759,23 +748,47 @@ def _run_ai_review(
         # Use detected backend if none was specified
         final_backend = backend or detected_backend
 
+        # Suppress Google warnings if using Gemini backend
+        if final_backend == "gemini":
+            suppress_google_warnings()
+
         logger.debug(f"Using backend: {final_backend}, model: {model_path}")
 
         # Create backend
         with console.status("[bold green]Loading AI model..."):
-            ai_backend = get_backend(
-                backend_type=final_backend,
-                model_path=model_path,
-                device=device,
-                temperature=temperature,
-                max_new_tokens=max_new_tokens,
-                top_p=top_p,
-            )
-            ai_backend.load_model()
+            # Temporarily redirect stderr for Gemini to suppress warnings
+            if final_backend == "gemini":
+                stderr_backup = sys.stderr
+                sys.stderr = open(os.devnull, "w")
+
+            try:
+                ai_backend = get_backend(
+                    backend_type=final_backend,
+                    model_path=model_path,
+                    device=device,
+                    temperature=temperature,
+                    max_new_tokens=max_new_tokens,
+                    top_p=top_p,
+                )
+                ai_backend.load_model()
+            finally:
+                if final_backend == "gemini":
+                    sys.stderr.close()
+                    sys.stderr = stderr_backup
 
         # Generate review
         with console.status("[bold green]Analyzing commit..."):
-            response = ai_backend.generate_json(system_prompt, user_prompt)
+            # Temporarily redirect stderr for Gemini during inference
+            if final_backend == "gemini":
+                stderr_backup = sys.stderr
+                sys.stderr = open(os.devnull, "w")
+
+            try:
+                response = ai_backend.generate_json(system_prompt, user_prompt)
+            finally:
+                if final_backend == "gemini":
+                    sys.stderr.close()
+                    sys.stderr = stderr_backup
 
         # Parse response
         result = parse_json_response(response)
@@ -789,7 +802,7 @@ def _run_ai_review(
         raise CLIError(f"Review failed: {e}") from e
 
 
-def _resolve_model_path(model: str, backend: Optional[str] = None) -> Tuple[str, str]:
+def _resolve_model_path(model: str, backend: Optional[str] = None) -> tuple[str, str]:
     """
     Resolve model path from name or path.
 
@@ -805,7 +818,7 @@ def _resolve_model_path(model: str, backend: Optional[str] = None) -> Tuple[str,
 
         # Auto-detect backend from file extension if not provided
         if backend is None:
-            if model.endswith('.gguf') or model.endswith('.ggml'):
+            if model.endswith(".gguf") or model.endswith(".ggml"):
                 backend = "llama"
             elif os.path.isdir(model):
                 # Assume ONNX if it's a directory
@@ -818,8 +831,6 @@ def _resolve_model_path(model: str, backend: Optional[str] = None) -> Tuple[str,
 
     # Check if it's a model name in registry
     if model in MODEL_REGISTRY or model in DEFAULT_MODELS:
-        manager = get_model_manager()
-
         # Auto-detect backend if not specified
         if backend is None:
             # Resolve alias first
@@ -839,7 +850,7 @@ def _resolve_model_path(model: str, backend: Optional[str] = None) -> Tuple[str,
 
     # Try to detect backend from extension
     if backend is None:
-        if model.endswith('.gguf') or model.endswith('.ggml'):
+        if model.endswith(".gguf") or model.endswith(".ggml"):
             backend = "llama"
         else:
             backend = "onnx"  # Default fallback
@@ -869,10 +880,14 @@ def _handle_review_result(
         return 0
     else:
         if soft:
-            console.print(f"[bold yellow]⚠ {review_type.title()} needs attention (soft mode - allowing commit)[/bold yellow]")
+            console.print(
+                f"[bold yellow]⚠ {review_type.title()} needs attention (soft mode - allowing commit)[/bold yellow]"
+            )
             return 0
         else:
-            console.print(f"[bold red]✗ {review_type.title()} rejected (hard mode - blocking commit)[/bold red]")
+            console.print(
+                f"[bold red]✗ {review_type.title()} rejected (hard mode - blocking commit)[/bold red]"
+            )
             return 1
 
 

@@ -1,0 +1,115 @@
+# Pre-commit configuration for PatchPatrol development
+# Install: pip install pre-commit && pre-commit install
+
+repos:
+  # Standard code quality hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: debug-statements
+      - id: check-case-conflict
+
+  # Python code formatting
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3
+        args: [--line-length=100]
+
+  # Import sorting
+  - repo: https://github.com/pycqa/isort
+    rev: 7.0.0
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=100]
+
+  # Python linting with ruff (faster alternative to flake8)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  # Type checking with mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-click, types-requests]
+        args: [--ignore-missing-imports, --no-strict-optional]
+
+  # Security linting
+  # Temporarily disabled due to pbr dependency issue
+  # - repo: https://github.com/PyCQA/bandit
+  #   rev: 1.7.5
+  #   hooks:
+  #     - id: bandit
+  #       args: [-r, patchpatrol/, -f, json, -o, /tmp/bandit-report.json]
+  #       exclude: ^tests/
+
+  # PatchPatrol's own hooks - dogfooding our tool with Gemini!
+  # Requires GEMINI_API_KEY environment variable to be set
+  # Get your API key from: https://makersuite.google.com/app/apikey
+  - repo: local
+    hooks:
+      # Review staged changes with Gemini backend
+      - id: patchpatrol-gemini-review
+        name: PatchPatrol - Gemini Review
+        entry: uv run patchpatrol review-changes
+        language: system
+        args: [--model=cloud, --soft, --threshold=0.7]
+        stages: [pre-commit]
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
+      # Review commit message with Gemini for comprehensive analysis
+      - id: patchpatrol-gemini-message
+        name: PatchPatrol - Gemini Message Review
+        entry: uv run patchpatrol review-message
+        language: system
+        args: [--model=cloud, --soft, --threshold=0.7]
+        stages: [commit-msg]
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
+  # Alternative: PatchPatrol with different models for different scenarios
+  # Uncomment based on your preference and available models
+
+  # # Fast local review for frequent commits
+  # - repo: local
+  #   hooks:
+  #     - id: patchpatrol-quick
+  #       name: PatchPatrol - Quick Review
+  #       entry: uv run patchpatrol review-changes
+  #       language: system
+  #       args: [--model=minimal, --soft, --threshold=0.5]
+  #       stages: [pre-commit]
+
+  # # Thorough cloud review for important commits
+  # - repo: local
+  #   hooks:
+  #     - id: patchpatrol-thorough
+  #       name: PatchPatrol - Thorough Review
+  #       entry: uv run patchpatrol review-complete
+  #       language: system
+  #       args: [--model=premium, --hard, --threshold=0.8]
+  #       stages: [pre-commit]
+  #       # Only run on main branch or specific patterns
+  #       files: '^(patchpatrol/|tests/|README\.md|pyproject\.toml)'
+
+# Configuration for tools
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
+# Performance optimization
+minimum_pre_commit_version: '3.0.0'

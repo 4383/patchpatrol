@@ -6,10 +6,10 @@ JSON responses from AI models for commit review.
 """
 
 import json
-import re
 import logging
-from typing import Dict, Any, List, Optional, Union, Tuple
+import re
 from dataclasses import dataclass
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +26,18 @@ class ReviewResult:
         raw_response: Original AI response
         parsing_errors: Any errors that occurred during parsing
     """
+
     score: float
     verdict: str
-    comments: List[str]
+    comments: list[str]
     raw_response: str
-    parsing_errors: Optional[List[str]] = None
+    parsing_errors: Optional[list[str]] = None
 
     def is_approved(self, threshold: float = 0.7) -> bool:
         """Check if the review meets the approval threshold."""
         return self.verdict == "approve" and self.score >= threshold
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         return {
             "score": self.score,
@@ -49,10 +50,11 @@ class ReviewResult:
 
 class ParseError(Exception):
     """Exception raised when parsing AI responses fails."""
+
     pass
 
 
-def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
+def extract_json_from_text(text: str) -> Optional[dict[str, Any]]:
     """
     Extract JSON object from AI model response text.
 
@@ -72,34 +74,34 @@ def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
     text = text.strip()
 
     # Pattern 1: Try to find JSON in code blocks
-    code_block_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+    code_block_pattern = r"```(?:json)?\s*(\{.*?\})\s*```"
     match = re.search(code_block_pattern, text, re.DOTALL | re.IGNORECASE)
     if match:
         try:
-            return json.loads(match.group(1))
+            return json.loads(match.group(1))  # type: ignore[no-any-return]
         except json.JSONDecodeError:
             pass
 
     # Pattern 2: Try to find JSON object directly
     # Look for balanced braces
-    json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+    json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
     matches = re.findall(json_pattern, text, re.DOTALL)
 
     for match in matches:
         try:
-            return json.loads(match)
+            return json.loads(match)  # type: ignore[no-any-return, arg-type]
         except json.JSONDecodeError:
             continue
 
     # Pattern 3: Try to extract from the beginning of the text
-    if text.strip().startswith('{'):
+    if text.strip().startswith("{"):
         # Find the end of the JSON object
         brace_count = 0
         json_end = 0
         for i, char in enumerate(text):
-            if char == '{':
+            if char == "{":
                 brace_count += 1
-            elif char == '}':
+            elif char == "}":
                 brace_count -= 1
                 if brace_count == 0:
                     json_end = i + 1
@@ -107,20 +109,20 @@ def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
 
         if json_end > 0:
             try:
-                return json.loads(text[:json_end])
+                return json.loads(text[:json_end])  # type: ignore[no-any-return]
             except json.JSONDecodeError:
                 pass
 
     # Pattern 4: Try parsing the entire text
     try:
-        return json.loads(text)
+        return json.loads(text)  # type: ignore[no-any-return]
     except json.JSONDecodeError:
         pass
 
     return None
 
 
-def validate_review_json(data: Dict[str, Any]) -> Tuple[bool, List[str]]:
+def validate_review_json(data: dict[str, Any]) -> tuple[bool, list[str]]:
     """
     Validate that JSON contains required review fields.
 
@@ -167,7 +169,7 @@ def validate_review_json(data: Dict[str, Any]) -> Tuple[bool, List[str]]:
     return len(errors) == 0, errors
 
 
-def normalize_review_json(data: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_review_json(data: dict[str, Any]) -> dict[str, Any]:
     """
     Normalize and clean review JSON data.
 
@@ -191,29 +193,28 @@ def normalize_review_json(data: Dict[str, Any]) -> Dict[str, Any]:
     # Normalize verdict
     verdict = data.get("verdict", "revise").lower().strip()
     if verdict in ["approve", "approved", "accept", "pass"]:
-        normalized["verdict"] = "approve"
+        normalized["verdict"] = "approve"  # type: ignore[assignment]
     else:
-        normalized["verdict"] = "revise"
+        normalized["verdict"] = "revise"  # type: ignore[assignment]
 
     # Normalize comments
     comments = data.get("comments", [])
     if isinstance(comments, str):
         # If comments is a string, split it or wrap it
         if comments.strip():
-            normalized["comments"] = [comments.strip()]
+            normalized["comments"] = [comments.strip()]  # type: ignore[assignment]
         else:
-            normalized["comments"] = []
+            normalized["comments"] = []  # type: ignore[assignment]
     elif isinstance(comments, list):
-        normalized["comments"] = [
-            str(comment).strip() for comment in comments
-            if str(comment).strip()
+        normalized["comments"] = [  # type: ignore[assignment]
+            str(comment).strip() for comment in comments if str(comment).strip()
         ]
     else:
-        normalized["comments"] = []
+        normalized["comments"] = []  # type: ignore[assignment]
 
     # Limit number of comments
-    if len(normalized["comments"]) > 10:
-        normalized["comments"] = normalized["comments"][:10]
+    if len(normalized["comments"]) > 10:  # type: ignore[arg-type]
+        normalized["comments"] = normalized["comments"][:10]  # type: ignore[index]
 
     return normalized
 
@@ -243,7 +244,7 @@ def parse_json_response(response: str) -> ReviewResult:
             verdict="revise",
             comments=["Failed to parse AI response - please review manually"],
             raw_response=response,
-            parsing_errors=parsing_errors
+            parsing_errors=parsing_errors,
         )
 
     # Validate JSON structure
@@ -262,7 +263,7 @@ def parse_json_response(response: str) -> ReviewResult:
             verdict="revise",
             comments=["Failed to process AI response - please review manually"],
             raw_response=response,
-            parsing_errors=parsing_errors
+            parsing_errors=parsing_errors,
         )
 
     return ReviewResult(
@@ -270,7 +271,7 @@ def parse_json_response(response: str) -> ReviewResult:
         verdict=normalized_data["verdict"],
         comments=normalized_data["comments"],
         raw_response=response,
-        parsing_errors=parsing_errors if parsing_errors else None
+        parsing_errors=parsing_errors if parsing_errors else None,
     )
 
 
@@ -310,53 +311,66 @@ def validate_review_output(result: ReviewResult, threshold: float = 0.7) -> bool
 
 def format_review_output(result: ReviewResult, use_colors: bool = True) -> str:
     """
-    Format review result for human-readable output.
+    Format review result for human-readable output using Rich markup.
 
     Args:
         result: ReviewResult to format
-        use_colors: Whether to use ANSI color codes
+        use_colors: Whether to use Rich color markup
 
     Returns:
-        Formatted string representation
+        Formatted string with Rich markup
     """
-    # Color codes
-    if use_colors:
-        GREEN = "\033[92m"
-        RED = "\033[91m"
-        YELLOW = "\033[93m"
-        BLUE = "\033[94m"
-        BOLD = "\033[1m"
-        RESET = "\033[0m"
+    if not use_colors:
+        # Plain text version
+        status_line = f"{'✓' if result.verdict == 'approve' else '✗'} {result.verdict.upper()}"
+        score_line = f"Score: {result.score:.2f}"
+
+        comments_section = ""
+        if result.comments:
+            comments_section = "\nComments:\n"
+            for i, comment in enumerate(result.comments, 1):
+                comments_section += f"  {i}. {comment}\n"
+
+        errors_section = ""
+        if result.parsing_errors:
+            errors_section = "\nParsing Issues:\n"
+            for error in result.parsing_errors:
+                errors_section += f"  ⚠ {error}\n"
+
+        return f"{status_line} | {score_line}{comments_section}{errors_section}".rstrip()
+
+    # Rich markup version
+    status_color = "green" if result.verdict == "approve" else "red"
+    status_line = f"[bold {status_color}]{'✓' if result.verdict == 'approve' else '✗'} {result.verdict.upper()}[/bold {status_color}]"
+
+    # Score line with color based on score
+    if result.score >= 0.8:
+        score_color = "green"
+    elif result.score >= 0.5:
+        score_color = "yellow"
     else:
-        GREEN = RED = YELLOW = BLUE = BOLD = RESET = ""
-
-    # Status line
-    status_color = GREEN if result.verdict == "approve" else RED
-    status_line = f"{BOLD}{status_color}{'✓' if result.verdict == 'approve' else '✗'} {result.verdict.upper()}{RESET}"
-
-    # Score line
-    score_color = GREEN if result.score >= 0.8 else YELLOW if result.score >= 0.5 else RED
-    score_line = f"{BOLD}Score:{RESET} {score_color}{result.score:.2f}{RESET}"
+        score_color = "red"
+    score_line = f"[bold]Score:[/bold] [{score_color}]{result.score:.2f}[/{score_color}]"
 
     # Comments
     comments_section = ""
     if result.comments:
-        comments_section = f"\n{BOLD}Comments:{RESET}\n"
+        comments_section = "\n[bold]Comments:[/bold]\n"
         for i, comment in enumerate(result.comments, 1):
-            comments_section += f"  {BLUE}{i}.{RESET} {comment}\n"
+            comments_section += f"  [blue]{i}.[/blue] {comment}\n"
 
     # Parsing errors
     errors_section = ""
     if result.parsing_errors:
-        errors_section = f"\n{BOLD}{YELLOW}Parsing Issues:{RESET}\n"
+        errors_section = "\n[bold yellow]Parsing Issues:[/bold yellow]\n"
         for error in result.parsing_errors:
-            errors_section += f"  {YELLOW}⚠{RESET} {error}\n"
+            errors_section += f"  [yellow]⚠[/yellow] {error}\n"
 
     return f"{status_line} | {score_line}{comments_section}{errors_section}".rstrip()
 
 
 # Helper function for common use case
-def parse_and_validate(response: str, threshold: float = 0.7) -> Tuple[ReviewResult, bool]:
+def parse_and_validate(response: str, threshold: float = 0.7) -> tuple[ReviewResult, bool]:
     """
     Parse and validate AI response in one step.
 

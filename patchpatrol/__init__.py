@@ -10,6 +10,6 @@ __author__ = "PatchPatrol Team"
 __email__ = "dev@patchpatrol.dev"
 
 from .cli import main
-from .models import get_model_manager, list_models, download_model
+from .models import download_model, get_model_manager, list_models
 
 __all__ = ["main", "get_model_manager", "list_models", "download_model"]

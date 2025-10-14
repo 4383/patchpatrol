@@ -5,16 +5,17 @@ This module implements the Gemini backend using Google's Generative AI API
 for cloud-based model execution.
 """
 
-import os
 import logging
-from typing import Optional, Dict, Any, List
+import os
+from typing import Any, Optional
 
-from .base import BaseBackend, ModelLoadError, InferenceError
+from .base import BaseBackend, InferenceError, ModelLoadError
 
 logger = logging.getLogger(__name__)
 
 try:
     import google.generativeai as genai
+
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
@@ -36,7 +37,7 @@ class GeminiBackend(BaseBackend):
         max_new_tokens: int = 512,
         top_p: float = 0.9,
         api_key: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize Gemini backend.
@@ -59,7 +60,7 @@ class GeminiBackend(BaseBackend):
         # For API models, model_path is actually the model name
         super().__init__(model_path, "cloud", temperature, max_new_tokens, top_p, **kwargs)
 
-        self.api_key = api_key or os.getenv('GEMINI_API_KEY')
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError(
                 "Gemini API key is required. Set GEMINI_API_KEY environment variable "
@@ -133,29 +134,15 @@ class GeminiBackend(BaseBackend):
 
             # Configure safety settings to be permissive for code review
             safety_settings = [
-                {
-                    "category": "HARM_CATEGORY_HARASSMENT",
-                    "threshold": "BLOCK_NONE"
-                },
-                {
-                    "category": "HARM_CATEGORY_HATE_SPEECH",
-                    "threshold": "BLOCK_NONE"
-                },
-                {
-                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                    "threshold": "BLOCK_NONE"
-                },
-                {
-                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                    "threshold": "BLOCK_NONE"
-                }
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
             ]
 
             # Generate response
-            response = self._model.generate_content(
-                full_prompt,
-                generation_config=generation_config,
-                safety_settings=safety_settings
+            response = self._model.generate_content(  # type: ignore[attr-defined]
+                full_prompt, generation_config=generation_config, safety_settings=safety_settings
             )
 
             # Check if the response was blocked
@@ -168,7 +155,7 @@ class GeminiBackend(BaseBackend):
             if response.parts:
                 content = response.text.strip()
                 logger.debug(f"Generated response length: {len(content)} characters")
-                return content
+                return content  # type: ignore[no-any-return]
             else:
                 raise InferenceError("Gemini returned empty response")
 
@@ -182,19 +169,30 @@ class GeminiBackend(BaseBackend):
         self._is_loaded = False
         logger.info("Gemini model connection closed")
 
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         """Get detailed information about the Gemini backend."""
         info = super().get_info()
-        info.update({
-            "model_name": self.model_name,
-            "api_key_set": bool(self.api_key),
-            "gemini_available": GEMINI_AVAILABLE,
-        })
+        info.update(
+            {
+                "model_name": self.model_name,
+                "api_key_set": bool(self.api_key),
+                "gemini_available": GEMINI_AVAILABLE,
+            }
+        )
         return info
 
     def validate_parameters(self) -> None:
         """Validate Gemini-specific parameters."""
-        super().validate_parameters()
+        # Skip base class validation for device (API models don't use local devices)
+        # Only validate core parameters
+        if not 0.0 <= self.temperature <= 1.0:
+            raise ValueError(f"Temperature must be between 0.0 and 1.0, got {self.temperature}")
+
+        if not 0.0 <= self.top_p <= 1.0:
+            raise ValueError(f"top_p must be between 0.0 and 1.0, got {self.top_p}")
+
+        if self.max_new_tokens <= 0:
+            raise ValueError(f"max_new_tokens must be positive, got {self.max_new_tokens}")
 
         # Gemini-specific validations
         if self.max_new_tokens > 8192:
@@ -204,7 +202,15 @@ class GeminiBackend(BaseBackend):
             )
 
         # Validate model name format
-        valid_prefixes = ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash']
+        valid_prefixes = [
+            "gemini-pro",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+            "gemini-2.0-flash",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "gemini-exp",
+        ]
         if not any(self.model_name.startswith(prefix) for prefix in valid_prefixes):
             logger.warning(
                 f"Model name '{self.model_name}' may not be valid. "
@@ -224,7 +230,7 @@ def test_gemini_connection(api_key: Optional[str] = None) -> bool:
         True if connection successful, False otherwise
     """
     try:
-        test_key = api_key or os.getenv('GEMINI_API_KEY')
+        test_key = api_key or os.getenv("GEMINI_API_KEY")
         if not test_key:
             return False
 

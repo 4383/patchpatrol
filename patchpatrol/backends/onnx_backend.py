@@ -4,20 +4,21 @@ ONNX Runtime backend for AI inference.
 This module implements the ONNX backend using optimum and transformers
 for local model execution with CPU or CUDA providers.
 """
+# mypy: disable-error-code=unreachable
 
-import os
 import logging
-from typing import Optional, List, Dict, Any
 from pathlib import Path
+from typing import Any, Optional
 
-from .base import BaseBackend, ModelLoadError, InferenceError
+from .base import BaseBackend, InferenceError, ModelLoadError
 
 logger = logging.getLogger(__name__)
 
 try:
-    from optimum.onnxruntime import ORTModelForCausalLM
-    from transformers import AutoTokenizer, AutoConfig
     import torch
+    from optimum.onnxruntime import ORTModelForCausalLM
+    from transformers import AutoConfig, AutoTokenizer
+
     ONNX_AVAILABLE = True
 except ImportError:
     ONNX_AVAILABLE = False
@@ -43,7 +44,7 @@ class ONNXBackend(BaseBackend):
         max_new_tokens: int = 512,
         top_p: float = 0.9,
         provider: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize ONNX backend.
@@ -90,9 +91,7 @@ class ONNXBackend(BaseBackend):
                 missing_files.append(file)
 
         if missing_files:
-            raise ModelLoadError(
-                f"Missing required files in {self.model_path}: {missing_files}"
-            )
+            raise ModelLoadError(f"Missing required files in {self.model_path}: {missing_files}")
 
     def load_model(self) -> None:
         """
@@ -112,8 +111,8 @@ class ONNXBackend(BaseBackend):
             )
 
             # Ensure tokenizer has proper padding
-            if self._tokenizer.pad_token is None:
-                self._tokenizer.pad_token = self._tokenizer.eos_token
+            if self._tokenizer.pad_token is None:  # type: ignore[attr-defined]
+                self._tokenizer.pad_token = self._tokenizer.eos_token  # type: ignore[attr-defined]
 
             # Load ONNX model
             providers = [self.provider]
@@ -152,39 +151,37 @@ class ONNXBackend(BaseBackend):
             # Format the conversation
             messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ]
 
             # Apply chat template if available
-            if hasattr(self._tokenizer, 'apply_chat_template'):
-                prompt = self._tokenizer.apply_chat_template(
-                    messages,
-                    tokenize=False,
-                    add_generation_prompt=True
+            if hasattr(self._tokenizer, "apply_chat_template"):
+                prompt = self._tokenizer.apply_chat_template(  # type: ignore[attr-defined]
+                    messages, tokenize=False, add_generation_prompt=True
                 )
             else:
                 # Fallback to simple concatenation
                 prompt = f"System: {system_prompt}\n\nUser: {user_prompt}\n\nAssistant:"
 
             # Tokenize input
-            inputs = self._tokenizer(
+            inputs = self._tokenizer(  # type: ignore[misc]
                 prompt,
                 return_tensors="pt",
                 truncation=True,
                 max_length=4096,  # Reasonable context limit
-                padding=True
+                padding=True,
             )
 
             # Generate response
             with torch.no_grad():
-                outputs = self._model.generate(
+                outputs = self._model.generate(  # type: ignore[attr-defined]
                     **inputs,
                     max_new_tokens=self.max_new_tokens,
                     temperature=self.temperature,
                     top_p=self.top_p,
                     do_sample=True if self.temperature > 0 else False,
-                    pad_token_id=self._tokenizer.pad_token_id,
-                    eos_token_id=self._tokenizer.eos_token_id,
+                    pad_token_id=self._tokenizer.pad_token_id,  # type: ignore[attr-defined]
+                    eos_token_id=self._tokenizer.eos_token_id,  # type: ignore[attr-defined]
                     repetition_penalty=1.1,
                     length_penalty=1.0,
                 )
@@ -192,13 +189,10 @@ class ONNXBackend(BaseBackend):
             # Decode response
             input_length = inputs["input_ids"].shape[1]
             generated_tokens = outputs[0][input_length:]
-            response = self._tokenizer.decode(
-                generated_tokens,
-                skip_special_tokens=True
-            ).strip()
+            response = self._tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()  # type: ignore[attr-defined]
 
             logger.debug(f"Generated response length: {len(response)} characters")
-            return response
+            return response  # type: ignore[no-any-return]
 
         except Exception as e:
             logger.error(f"ONNX inference failed: {e}")
@@ -222,22 +216,26 @@ class ONNXBackend(BaseBackend):
 
         logger.info("ONNX model unloaded")
 
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         """Get detailed information about the ONNX backend."""
         info = super().get_info()
-        info.update({
-            "provider": self.provider,
-            "onnx_available": ONNX_AVAILABLE,
-        })
+        info.update(
+            {
+                "provider": self.provider,
+                "onnx_available": ONNX_AVAILABLE,
+            }
+        )
 
         if self.is_loaded() and self._model:
             try:
                 config = AutoConfig.from_pretrained(self.model_path)
-                info.update({
-                    "model_type": config.model_type,
-                    "vocab_size": getattr(config, 'vocab_size', 'unknown'),
-                    "hidden_size": getattr(config, 'hidden_size', 'unknown'),
-                })
+                info.update(
+                    {
+                        "model_type": config.model_type,
+                        "vocab_size": getattr(config, "vocab_size", "unknown"),
+                        "hidden_size": getattr(config, "hidden_size", "unknown"),
+                    }
+                )
             except Exception:
                 pass  # Config info is optional
 
