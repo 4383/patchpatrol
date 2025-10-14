@@ -6,15 +6,15 @@
 
 **AI-powered commit review system for pre-commit hooks**
 
-PatchPatrol is a local, offline AI system that analyzes Git commits for code quality, coherence, and commit message clarity using ONNX or llama.cpp backends. It integrates seamlessly with pre-commit hooks to provide automated code review before your changes reach the repository.
+PatchPatrol is a flexible AI system that analyzes Git commits for code quality, coherence, and commit message clarity using local models (ONNX, llama.cpp) or cloud APIs (Gemini). Choose between fully offline local inference or powerful cloud-based analysis. It integrates seamlessly with pre-commit hooks to provide automated code review before your changes reach the repository.
 
 ## Features
 
 - **Multiple AI Backends**: Local (ONNX, llama.cpp) and cloud (Gemini API) options
-- **100% Offline Option**: Local models never send data externally
+- **Privacy Options**: Choose fully offline local models or powerful cloud analysis
 - **Automatic Model Management**: Built-in model registry with automatic downloading
 - **Zero Setup**: Works out-of-the-box in CI/CD environments
-- **Fast Analysis**: Optimized for sub-5-second review cycles
+- **Fast Analysis**: Optimized for sub-5-second review cycles (local) or instant cloud responses
 - **Structured Output**: Consistent JSON responses with scores and actionable feedback
 - **Configurable**: Soft/hard modes, custom thresholds, and extensible prompts
 - **Pre-commit Integration**: Drop-in compatibility with existing workflows
@@ -137,9 +137,9 @@ All review commands support both model names and file paths.
 patchpatrol review-changes [OPTIONS]
 
 Options:
-  --backend [onnx|llama]     Backend (auto-detected if not specified)
+  --backend [onnx|llama|gemini]  Backend (auto-detected if not specified)
   --model NAME_OR_PATH       Model name or path (required)
-  --device [cpu|cuda]        Compute device (default: cpu)
+  --device [cpu|cuda|cloud]  Compute device (default: cpu, cloud for API models)
   --threshold FLOAT          Minimum acceptance score 0.0-1.0 (default: 0.7)
   --temperature FLOAT        Sampling temperature 0.0-1.0 (default: 0.2)
   --max-new-tokens INTEGER   Maximum tokens to generate (default: 512)
@@ -150,15 +150,21 @@ Options:
 
 **Examples:**
 ```bash
-# Using model names (auto-download)
+# Using local model names (auto-download)
 patchpatrol review-changes --model granite-3b-code
 patchpatrol review-changes --model ci --hard
+
+# Using cloud models (Gemini API)
+export GEMINI_API_KEY="your-api-key"
+patchpatrol review-changes --model cloud
+patchpatrol review-changes --model gemini-2.0-flash-exp --backend gemini
 
 # Using file paths
 patchpatrol review-changes --model ./models/my-model.gguf
 
 # Backend auto-detection
-patchpatrol review-changes --model codellama-7b  # auto-detects llama backend
+patchpatrol review-changes --model codellama-7b    # auto-detects llama backend
+patchpatrol review-changes --model cloud           # auto-detects gemini backend
 ```
 
 ##### `review-message` - Analyze Commit Messages
@@ -572,10 +578,23 @@ pytest tests/
 
 ## Security & Privacy
 
+### Local Models (ONNX, llama.cpp)
 - **No Network Calls**: All inference happens locally
 - **No Data Collection**: Your code never leaves your machine
 - **Secure by Default**: Models run in isolated processes
 - **Audit Trail**: All decisions are logged locally
+
+### Cloud Models (Gemini API)
+- **API Communication**: Code/commits sent to Google for analysis
+- **Privacy Policy**: Subject to Google's privacy policies
+- **Data Handling**: Follow Google AI Studio terms of service
+- **API Security**: Uses HTTPS encryption for data transmission
+- **No Permanent Storage**: Google doesn't store your code for training (per API terms)
+
+### Choosing Your Privacy Level
+- **Maximum Privacy**: Use local models (`--model granite-3b-code`, `--model ci`)
+- **Balanced Approach**: Use cloud for public repos, local for sensitive code
+- **Cloud Benefits**: Latest AI capabilities, no local storage requirements
 
 ## Troubleshooting
 
