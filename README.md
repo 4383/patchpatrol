@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="logo.png" alt="PatchPatrol Logo" width="300" height="300">
+</div>
+
 # PatchPatrol
 
 **AI-powered commit review system for pre-commit hooks**
