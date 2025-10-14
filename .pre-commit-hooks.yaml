@@ -1,0 +1,59 @@
+---
+# Pre-commit hooks configuration for PatchPatrol
+# AI-powered commit review system
+
+- id: patchpatrol-review-changes
+  name: PatchPatrol - Review staged changes
+  description: Analyze staged code changes for quality and best practices
+  entry: patchpatrol review-changes
+  language: python
+  stages: [pre-commit]
+  types: [text]
+  pass_filenames: false
+  require_serial: true
+  minimum_pre_commit_version: "2.9.0"
+
+- id: patchpatrol-review-message
+  name: PatchPatrol - Review commit message
+  description: Analyze commit message for clarity and conventions
+  entry: patchpatrol review-message
+  language: python
+  stages: [commit-msg]
+  types: [text]
+  pass_filenames: true
+  require_serial: true
+  minimum_pre_commit_version: "2.9.0"
+
+- id: patchpatrol-review-complete
+  name: PatchPatrol - Complete commit review
+  description: Comprehensive review of both changes and commit message
+  entry: patchpatrol review-complete
+  language: python
+  stages: [pre-commit]
+  types: [text]
+  pass_filenames: false
+  require_serial: true
+  minimum_pre_commit_version: "2.9.0"
+
+# Lightweight hooks for specific scenarios
+- id: patchpatrol-changes-soft
+  name: PatchPatrol - Review changes (soft mode)
+  description: Analyze changes with warnings only (non-blocking)
+  entry: patchpatrol review-changes --soft
+  language: python
+  stages: [pre-commit]
+  types: [text]
+  pass_filenames: false
+  require_serial: true
+  minimum_pre_commit_version: "2.9.0"
+
+- id: patchpatrol-message-soft
+  name: PatchPatrol - Review message (soft mode)
+  description: Analyze commit message with warnings only (non-blocking)
+  entry: patchpatrol review-message --soft
+  language: python
+  stages: [commit-msg]
+  types: [text]
+  pass_filenames: true
+  require_serial: true
+  minimum_pre_commit_version: "2.9.0"

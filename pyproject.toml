@@ -1,0 +1,69 @@
+[project]
+name = "patchpatrol"
+version = "0.1.0"
+description = "AI-powered commit review system for pre-commit hooks - Local, offline analysis of Git commits using ONNX or llama.cpp backends"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "PatchPatrol Team", email = "dev@patchpatrol.dev"}
+]
+keywords = ["git", "pre-commit", "ai", "code-review", "onnx", "llama", "offline"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Version Control :: Git",
+]
+
+dependencies = [
+    "click>=8.0.0",
+    "rich>=13.0.0",
+    "gitpython>=3.1.30",
+]
+
+[project.optional-dependencies]
+onnx = [
+    "optimum[onnxruntime]>=1.13.0",
+    "transformers>=4.30.0",
+]
+llama = [
+    "llama-cpp-python>=0.2.0",
+]
+gemini = [
+    "google-generativeai>=0.3.0",
+]
+all = [
+    "optimum[onnxruntime]>=1.13.0",
+    "transformers>=4.30.0",
+    "llama-cpp-python>=0.2.0",
+    "google-generativeai>=0.3.0",
+]
+
+[project.scripts]
+patchpatrol = "patchpatrol.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/patchpatrol/patchpatrol"
+Repository = "https://github.com/patchpatrol/patchpatrol"
+Issues = "https://github.com/patchpatrol/patchpatrol/issues"
+Documentation = "https://github.com/patchpatrol/patchpatrol/blob/main/README.md"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["patchpatrol*"]
+
+[tool.setuptools.package-data]
+patchpatrol = ["py.typed"]
