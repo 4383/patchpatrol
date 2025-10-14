@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="PatchPatrol Logo" width="300" height="300">
+  <img src="logo.png" alt="PatchPatrol Logo" height="300">
 </div>
 
 # PatchPatrol
