@@ -21,7 +21,7 @@ class ModelInfo:
     """Information about a downloadable or API-based model."""
 
     name: str
-    backend: str  # "onnx", "llama", or "gemini"
+    backend: str  # "onnx" or "gemini"
     url: str | None  # None for API models
     size_mb: int
     description: str
@@ -41,44 +41,7 @@ class ModelInfo:
 
 # Model registry - curated list of tested models
 MODEL_REGISTRY: dict[str, ModelInfo] = {
-    # Lightweight models for CI/CD
-    "granite-3b-code": ModelInfo(
-        name="granite-3b-code",
-        backend="llama",
-        url="https://huggingface.co/ibm-granite/granite-3b-code-instruct-GGUF/resolve/main/granite-3b-code-instruct.Q4_K_M.gguf",
-        size_mb=1800,
-        description="IBM Granite 3B - Fast, lightweight code model perfect for CI/CD",
-        sha256=None,  # Would be real hash in production
-        requirements=["llama"],
-    ),
-    "granite-8b-code": ModelInfo(
-        name="granite-8b-code",
-        backend="llama",
-        url="https://huggingface.co/ibm-granite/granite-8b-code-instruct-GGUF/resolve/main/granite-8b-code-instruct.Q4_K_M.gguf",
-        size_mb=4500,
-        description="IBM Granite 8B - Balanced quality and performance",
-        sha256=None,
-        requirements=["llama"],
-    ),
-    "codellama-7b": ModelInfo(
-        name="codellama-7b",
-        backend="llama",
-        url="https://huggingface.co/TheBloke/CodeLlama-7B-Instruct-GGUF/resolve/main/codellama-7b-instruct.q4_k_m.gguf",
-        size_mb=4100,
-        description="Meta CodeLlama 7B - Excellent for code review",
-        sha256=None,
-        requirements=["llama"],
-    ),
-    "codegemma-2b": ModelInfo(
-        name="codegemma-2b",
-        backend="llama",
-        url="https://huggingface.co/google/codegemma-2b-it-GGUF/resolve/main/codegemma-2b-it.q4_k_m.gguf",
-        size_mb=1600,
-        description="Google CodeGemma 2B - Ultra-fast for quick reviews",
-        sha256=None,
-        requirements=["llama"],
-    ),
-    # ONNX models (smaller examples)
+    # ONNX models for local inference
     "distilgpt2-onnx": ModelInfo(
         name="distilgpt2-onnx",
         backend="onnx",
@@ -148,10 +111,10 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
 
 # Default models for different use cases
 DEFAULT_MODELS = {
-    "ci": "granite-3b-code",  # Fast for CI/CD
-    "dev": "granite-3b-code",  # Good for development
-    "quality": "codellama-7b",  # Best quality
-    "minimal": "codegemma-2b",  # Smallest/fastest
+    "ci": "distilgpt2-onnx",  # Fast local model for CI/CD
+    "dev": "distilgpt2-onnx",  # Good for development
+    "quality": "gemini-2.0-flash-exp",  # Best quality
+    "minimal": "distilgpt2-onnx",  # Smallest local model
     "cloud": "gemini-2.0-flash",  # Fast cloud-based option with latest working AI
     "premium": "gemini-2.0-flash-exp",  # Premium cloud with experimental features
 }
@@ -251,7 +214,7 @@ class ModelManager:
             logger.info(f"Model '{model_name}' not cached, downloading...")
             self.download_model(model_name)
 
-        # For ONNX models, return the directory; for llama models, return the file
+        # For ONNX models, return the directory; for other models, return the file
         if model_info.backend == "onnx":
             return str(model_dir)
         else:
