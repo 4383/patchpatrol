@@ -568,7 +568,7 @@ pytest tests/
 
 ## Requirements
 
-- Python >= 3.9
+- Python >= 3.10
 - Git repository
 - One of:
   - ONNX Runtime + Transformers (for ONNX backend)

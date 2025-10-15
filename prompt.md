@@ -285,7 +285,7 @@ repos:
 
 ### 6.1 Packaging Requirements
 
-* Python ≥ 3.9
+* Python ≥ 3.10
 * Dependencies:
 
   * Core: `click`, `rich`, `gitpython`
