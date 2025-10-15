@@ -2,7 +2,7 @@
 PatchPatrol - AI-powered commit review system for pre-commit hooks.
 
 A local, offline AI system that analyzes Git commits for code quality,
-coherence, and commit message clarity using ONNX or llama.cpp backends.
+coherence, and commit message clarity using ONNX backends.
 """
 
 __version__ = "0.1.0"

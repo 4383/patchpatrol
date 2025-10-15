@@ -373,15 +373,6 @@ toml = [
 ]
 
 [[package]]
-name = "diskcache"
-version = "5.6.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/3f/21/1c1ffc1a039ddcc459db43cc108658f32c57d271d7289a2794e401d0fdb6/diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc", size = 67916, upload-time = "2023-08-31T06:12:00.316Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/27/4570e78fc0bf5ea0ca45eb1de3818a23787af9b390c0b0a0033a1b8236f9/diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19", size = 45550, upload-time = "2023-08-31T06:11:58.822Z" },
-]
-
-[[package]]
 name = "distlib"
 version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -817,20 +808,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
 ]
-
-[[package]]
-name = "llama-cpp-python"
-version = "0.3.16"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "diskcache" },
-    { name = "jinja2" },
-    { name = "numpy", version = "2.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.10.*'" },
-    { name = "numpy", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/b4/c8cd17629ced0b9644a71d399a91145aedef109c0333443bef015e45b704/llama_cpp_python-0.3.16.tar.gz", hash = "sha256:34ed0f9bd9431af045bb63d9324ae620ad0536653740e9bb163a2e1fcb973be6", size = 50688636, upload-time = "2025-08-15T04:58:29.212Z" }
 
 [[package]]
 name = "markdown-it-py"
@@ -1667,7 +1644,6 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "google-generativeai" },
-    { name = "llama-cpp-python" },
     { name = "optimum", extra = ["onnxruntime"] },
     { name = "transformers" },
 ]
@@ -1687,9 +1663,6 @@ dev = [
 ]
 gemini = [
     { name = "google-generativeai" },
-]
-llama = [
-    { name = "llama-cpp-python" },
 ]
 onnx = [
     { name = "optimum", extra = ["onnxruntime"] },
@@ -1712,8 +1685,6 @@ requires-dist = [
     { name = "google-generativeai", marker = "extra == 'all'", specifier = ">=0.3.0" },
     { name = "google-generativeai", marker = "extra == 'gemini'", specifier = ">=0.3.0" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.12.0" },
-    { name = "llama-cpp-python", marker = "extra == 'all'", specifier = ">=0.2.0" },
-    { name = "llama-cpp-python", marker = "extra == 'llama'", specifier = ">=0.2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "optimum", extras = ["onnxruntime"], marker = "extra == 'all'", specifier = ">=1.13.0" },
     { name = "optimum", extras = ["onnxruntime"], marker = "extra == 'onnx'", specifier = ">=1.13.0" },
@@ -1733,7 +1704,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'all'", specifier = ">=4.30.0" },
     { name = "transformers", marker = "extra == 'onnx'", specifier = ">=4.30.0" },
 ]
-provides-extras = ["onnx", "llama", "gemini", "test", "dev", "all"]
+provides-extras = ["onnx", "gemini", "test", "dev", "all"]
 
 [[package]]
 name = "pathspec"

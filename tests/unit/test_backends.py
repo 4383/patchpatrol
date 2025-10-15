@@ -142,17 +142,6 @@ class TestGetBackend:
         mock_onnx_class.assert_called_once_with(model_path="test_model", device="cpu")
         assert backend == mock_backend
 
-    @patch("patchpatrol.backends.llama_backend.LlamaBackend")
-    def test_get_llama_backend(self, mock_llama_class):
-        """Test creating llama backend."""
-        mock_backend = Mock()
-        mock_llama_class.return_value = mock_backend
-
-        backend = get_backend("llama", model_path="test_model.gguf", device="cuda")
-
-        mock_llama_class.assert_called_once_with(model_path="test_model.gguf", device="cuda")
-        assert backend == mock_backend
-
     @patch("patchpatrol.backends.gemini_backend.GeminiBackend")
     def test_get_gemini_backend(self, mock_gemini_class):
         """Test creating Gemini backend."""
@@ -176,15 +165,6 @@ class TestGetBackend:
         """Test error when ONNX backend not available."""
         with pytest.raises(ImportError, match="ONNX backend requires"):
             get_backend("onnx", model_path="test_model")
-
-    @patch(
-        "patchpatrol.backends.llama_backend.LlamaBackend",
-        side_effect=ImportError("Module not found"),
-    )
-    def test_get_llama_backend_not_available(self, mock_import):
-        """Test error when llama backend not available."""
-        with pytest.raises(ImportError, match="Llama backend requires"):
-            get_backend("llama", model_path="test_model")
 
     @patch(
         "patchpatrol.backends.gemini_backend.GeminiBackend",
@@ -239,13 +219,6 @@ class TestBackendAvailability:
         """Test ONNX backend can be created when available."""
         mock_class.return_value = Mock()
         backend = get_backend("onnx", model_path="test")
-        assert backend is not None
-
-    @patch("patchpatrol.backends.llama_backend.LlamaBackend")
-    def test_llama_backend_creation(self, mock_class):
-        """Test llama backend can be created when available."""
-        mock_class.return_value = Mock()
-        backend = get_backend("llama", model_path="test")
         assert backend is not None
 
     @patch("patchpatrol.backends.gemini_backend.GeminiBackend")

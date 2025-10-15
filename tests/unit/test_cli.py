@@ -96,7 +96,7 @@ class TestModelManagementCommands:
         mock_get_manager.return_value = mock_manager
 
         mock_model_info = Mock()
-        mock_model_info.backend = "llama"
+        mock_model_info.backend = "onnx"
         mock_registry.__getitem__.return_value = mock_model_info
 
         runner = CliRunner()
@@ -187,7 +187,7 @@ class TestModelManagementCommands:
         # Mock MODEL_REGISTRY entries
         mock_model_info = Mock()
         mock_model_info.size_mb = 1800
-        mock_model_info.backend = "llama"
+        mock_model_info.backend = "onnx"
         mock_registry.__getitem__.return_value = mock_model_info
 
         runner = CliRunner()
@@ -266,13 +266,13 @@ class TestResolveModelPath:
 
     def test_resolve_existing_file_path(self, temp_dir):
         """Test resolving existing file path."""
-        model_file = temp_dir / "model.gguf"
+        model_file = temp_dir / "model.onnx"
         model_file.touch()
 
         path, backend = _resolve_model_path(str(model_file))
 
         assert path == str(model_file)
-        assert backend == "llama"  # Auto-detected from .gguf extension
+        assert backend == "onnx"  # Auto-detected from .onnx extension
 
     def test_resolve_existing_directory_path(self, temp_dir):
         """Test resolving existing directory path."""
@@ -300,7 +300,7 @@ class TestResolveModelPath:
     def test_resolve_registry_model(self, mock_get_path, mock_defaults, mock_registry):
         """Test resolving model from registry."""
         mock_model_info = Mock()
-        mock_model_info.backend = "llama"
+        mock_model_info.backend = "onnx"
         mock_registry.__contains__.return_value = True
         mock_registry.__getitem__.return_value = mock_model_info
         mock_defaults.get.return_value = "test-model"
@@ -309,7 +309,7 @@ class TestResolveModelPath:
         path, backend = _resolve_model_path("test-model")
 
         assert path == "/path/to/model"
-        assert backend == "llama"
+        assert backend == "onnx"
 
     @patch("patchpatrol.cli.MODEL_REGISTRY")
     @patch("patchpatrol.cli.DEFAULT_MODELS")
@@ -317,7 +317,7 @@ class TestResolveModelPath:
     def test_resolve_alias_model(self, mock_get_path, mock_defaults, mock_registry):
         """Test resolving model alias."""
         mock_model_info = Mock()
-        mock_model_info.backend = "llama"
+        mock_model_info.backend = "onnx"
         mock_registry.__contains__.side_effect = lambda x: x == "real-model"
         mock_registry.__getitem__.return_value = mock_model_info
         mock_defaults.get.return_value = "real-model"
@@ -327,14 +327,14 @@ class TestResolveModelPath:
         path, backend = _resolve_model_path("alias", backend=None)
 
         assert path == "/path/to/model"
-        assert backend == "llama"
+        assert backend == "onnx"
 
     def test_resolve_nonexistent_model(self):
         """Test resolving non-existent model."""
-        path, backend = _resolve_model_path("nonexistent.gguf")
+        path, backend = _resolve_model_path("nonexistent.onnx")
 
-        assert path == "nonexistent.gguf"
-        assert backend == "llama"  # Auto-detected from extension
+        assert path == "nonexistent.onnx"
+        assert backend == "onnx"  # Auto-detected from extension
 
     def test_resolve_unknown_extension(self):
         """Test resolving model with unknown extension."""
@@ -420,7 +420,7 @@ class TestReviewCommands:
                 "--model",
                 "test-model",
                 "--backend",
-                "llama",
+                "onnx",
                 "--threshold",
                 "0.8",
             ],
@@ -429,7 +429,7 @@ class TestReviewCommands:
         mock_impl.assert_called_once()
         args, kwargs = mock_impl.call_args
         assert kwargs["threshold"] == 0.8
-        assert kwargs["backend"] == "llama"
+        assert kwargs["backend"] == "onnx"
         assert kwargs["model"] == "test-model"
 
     @patch("patchpatrol.cli._review_message_impl")
@@ -581,7 +581,7 @@ class TestParameterValidation:
                     "--model",
                     "test-model",
                     "--backend",
-                    "llama",
+                    "onnx",
                 ],
             )
             assert result.exit_code == 0

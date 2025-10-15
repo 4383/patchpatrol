@@ -19,11 +19,11 @@
 
 **AI-powered commit review system for pre-commit hooks**
 
-PatchPatrol is a flexible AI system that analyzes Git commits for code quality, coherence, and commit message clarity using local models (ONNX, llama.cpp) or cloud APIs (Gemini). Choose between fully offline local inference or powerful cloud-based analysis. It integrates seamlessly with pre-commit hooks to provide automated code review before your changes reach the repository.
+PatchPatrol is a flexible AI system that analyzes Git commits for code quality, coherence, and commit message clarity using local models (ONNX) or cloud APIs (Gemini). Choose between fully offline local inference or powerful cloud-based analysis. It integrates seamlessly with pre-commit hooks to provide automated code review before your changes reach the repository.
 
 ## Features
 
-- **Multiple AI Backends**: Local (ONNX, llama.cpp) and cloud (Gemini API) options
+- **Multiple AI Backends**: Local (ONNX) and cloud (Gemini API) options
 - **Privacy Options**: Choose fully offline local models or powerful cloud analysis
 - **Automatic Model Management**: Built-in model registry with automatic downloading
 - **Zero Setup**: Works out-of-the-box in CI/CD environments
@@ -43,9 +43,6 @@ pip install patchpatrol
 
 # With ONNX support
 pip install patchpatrol[onnx]
-
-# With llama.cpp support
-pip install patchpatrol[llama]
 
 # With Gemini API support
 pip install patchpatrol[gemini]
@@ -74,7 +71,7 @@ pip install patchpatrol[all]
    patchpatrol review-changes --model cloud
 
    # Backend is auto-detected, or specify explicitly
-   patchpatrol review-changes --backend llama --model codellama-7b
+   patchpatrol review-changes --backend onnx --model granite-3b-code
    patchpatrol review-changes --backend gemini --model gemini-2.0-flash-exp
    ```
 
@@ -97,7 +94,7 @@ pip install patchpatrol[all]
 # GitHub Actions with local models
 - name: AI Code Review (Local)
   run: |
-    pip install patchpatrol[llama]
+    pip install patchpatrol[onnx]
     patchpatrol review-changes --model ci --hard
     # Model downloads automatically on first run
 
@@ -150,7 +147,7 @@ All review commands support both model names and file paths.
 patchpatrol review-changes [OPTIONS]
 
 Options:
-  --backend [onnx|llama|gemini]  Backend (auto-detected if not specified)
+  --backend [onnx|gemini]  Backend (auto-detected if not specified)
   --model NAME_OR_PATH       Model name or path (required)
   --device [cpu|cuda|cloud]  Compute device (default: cpu, cloud for API models)
   --threshold FLOAT          Minimum acceptance score 0.0-1.0 (default: 0.7)
@@ -173,10 +170,10 @@ patchpatrol review-changes --model cloud
 patchpatrol review-changes --model gemini-2.0-flash-exp --backend gemini
 
 # Using file paths
-patchpatrol review-changes --model ./models/my-model.gguf
+patchpatrol review-changes --model ./models/my-model/
 
 # Backend auto-detection
-patchpatrol review-changes --model codellama-7b    # auto-detects llama backend
+patchpatrol review-changes --model granite-3b-code # auto-detects onnx backend
 patchpatrol review-changes --model cloud           # auto-detects gemini backend
 ```
 
@@ -227,8 +224,8 @@ repos:
     hooks:
       - id: patchpatrol-review-changes
         args:
-          - --backend=llama
-          - --model=/shared/models/codellama-13b.gguf
+          - --backend=onnx
+          - --model=/shared/models/granite-8b-code/
           - --threshold=0.85
           - --device=cuda
           - --hard
@@ -249,8 +246,8 @@ repos:
     hooks:
       - id: patchpatrol-review-changes
         args:
-          - --backend=llama
-          - --model=~/models/granite-3b.gguf  # Smaller model for laptops
+          - --backend=onnx
+          - --model=~/models/granite-3b-code/  # Smaller model for laptops
           - --threshold=0.7
           - --soft                            # Warnings only for dev workflow
 ```
@@ -263,10 +260,8 @@ PatchPatrol includes a curated registry of tested models that download automatic
 
 | Model Name | Backend | Size | Description | Best For |
 |------------|---------|------|-------------|----------|
-| `granite-3b-code` | llama | ~1.8GB | IBM Granite 3B - Fast, lightweight | CI/CD, quick reviews |
-| `granite-8b-code` | llama | ~4.5GB | IBM Granite 8B - Balanced quality | General use |
-| `codellama-7b` | llama | ~4.1GB | Meta CodeLlama 7B - Excellent accuracy | High-quality reviews |
-| `codegemma-2b` | llama | ~1.6GB | Google CodeGemma 2B - Ultra-fast | Speed-critical environments |
+| `granite-3b-code` | onnx | ~1.8GB | IBM Granite 3B - Fast, lightweight | CI/CD, quick reviews |
+| `granite-8b-code` | onnx | ~4.5GB | IBM Granite 8B - Balanced quality | General use |
 | `distilgpt2-onnx` | onnx | ~350MB | DistilGPT2 ONNX - Minimal size | Resource-constrained environments |
 | `gemini-2.0-flash-exp` | gemini | API | Google Gemini 2.0 Flash Experimental - Latest experimental model | Advanced code analysis |
 | `gemini-2.0-flash` | gemini | API | Google Gemini 2.0 Flash - Stable fast model | Quick cloud reviews |
@@ -278,8 +273,8 @@ PatchPatrol includes a curated registry of tested models that download automatic
 |-------|-------|---------|
 | `ci` | `granite-3b-code` | Fast CI/CD reviews |
 | `dev` | `granite-3b-code` | Development workflow |
-| `quality` | `codellama-7b` | High-quality analysis |
-| `minimal` | `codegemma-2b` | Smallest/fastest option |
+| `quality` | `granite-8b-code` | High-quality analysis |
+| `minimal` | `distilgpt2-onnx` | Smallest/fastest option |
 | `cloud` | `gemini-2.0-flash` | Fast cloud-based reviews |
 | `premium` | `gemini-2.0-flash-exp` | Premium cloud analysis |
 
@@ -307,11 +302,11 @@ You can still use custom models by providing file paths:
 # ONNX models (directory containing model files)
 patchpatrol review-changes --model ./my-models/custom-onnx/
 
-# GGUF models (single file)
-patchpatrol review-changes --model ./my-models/custom.gguf
+# ONNX models (single file)
+patchpatrol review-changes --model ./my-models/custom.onnx
 
 # Backend auto-detection works with file paths too
-patchpatrol review-changes --model ./models/mymodel.gguf  # detects llama backend
+patchpatrol review-changes --model ./models/mymodel/  # detects onnx backend
 ```
 
 ### Model Export (Advanced)
@@ -412,7 +407,6 @@ Comments:
 | Backend | Best For | Requirements |
 |---------|----------|--------------|
 | `onnx` | High accuracy, custom models | `pip install patchpatrol[onnx]` |
-| `llama` | Fast inference, quantized models | `pip install patchpatrol[llama]` |
 | `gemini` | Cloud-based, no local storage | `pip install patchpatrol[gemini]` + API key |
 
 ## Advanced Usage
@@ -454,7 +448,7 @@ Create `.patchpatrol.toml`:
 
 ```toml
 [patchpatrol]
-backend = "gemini"         # Can be "onnx", "llama", or "gemini"
+backend = "gemini"         # Can be "onnx" or "gemini"
 model = "gemini-2.0-flash-exp"   # Model name from registry
 threshold = 0.8
 device = "cuda"            # Ignored for API models
@@ -488,7 +482,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install PatchPatrol
-        run: pip install patchpatrol[llama]
+        run: pip install patchpatrol[onnx]
 
       - name: Review Changes
         run: patchpatrol review-changes --model ci --hard
@@ -501,7 +495,7 @@ ai_review:
   stage: test
   image: python:3.11
   script:
-    - pip install patchpatrol[llama]
+    - pip install patchpatrol[onnx]
     - patchpatrol review-changes --model ci --hard
   only:
     - merge_requests
@@ -516,7 +510,7 @@ pipeline {
         stage('AI Review') {
             steps {
                 sh '''
-                    pip install patchpatrol[llama]
+                    pip install patchpatrol[onnx]
                     patchpatrol review-changes --model ci --hard
                 '''
             }
@@ -530,7 +524,7 @@ pipeline {
 ```dockerfile
 FROM python:3.11-slim
 
-RUN pip install patchpatrol[llama]
+RUN pip install patchpatrol[onnx]
 
 # Models will be cached in /root/.cache/patchpatrol/models
 VOLUME ["/root/.cache/patchpatrol"]
@@ -544,9 +538,9 @@ Models are cached after first download:
 
 | Model | Download Time | First Run | Subsequent Runs |
 |-------|---------------|-----------|-----------------|
-| `ci` (granite-3b) | ~2 min | ~15 sec | ~5 sec |
-| `minimal` (codegemma-2b) | ~90 sec | ~10 sec | ~3 sec |
-| `quality` (codellama-7b) | ~3 min | ~25 sec | ~8 sec |
+| `ci` (granite-3b-code) | ~2 min | ~15 sec | ~5 sec |
+| `minimal` (distilgpt2-onnx) | ~30 sec | ~5 sec | ~2 sec |
+| `quality` (granite-8b-code) | ~3 min | ~25 sec | ~8 sec |
 
 ## Development
 
@@ -578,7 +572,7 @@ pytest tests/
 - Git repository
 - One of:
   - ONNX Runtime + Transformers (for ONNX backend)
-  - llama-cpp-python (for llama.cpp backend)
+  - Google GenerativeAI (for Gemini API backend)
 
 ### System Requirements
 
@@ -591,7 +585,7 @@ pytest tests/
 
 ## Security & Privacy
 
-### Local Models (ONNX, llama.cpp)
+### Local Models (ONNX)
 - **No Network Calls**: All inference happens locally
 - **No Data Collection**: Your code never leaves your machine
 - **Secure by Default**: Models run in isolated processes

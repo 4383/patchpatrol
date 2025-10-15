@@ -145,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        backend: [onnx, llama, gemini]
+        backend: [onnx, gemini]
     steps:
     - uses: actions/checkout@v4
 

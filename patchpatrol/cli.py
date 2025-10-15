@@ -80,7 +80,7 @@ def main(ctx, verbose: bool, quiet: bool):
     """
     PatchPatrol - AI-powered commit review for pre-commit hooks.
 
-    Local, offline analysis of Git commits using ONNX or llama.cpp backends.
+    Local, offline analysis of Git commits using ONNX backends.
     """
     ctx.ensure_object(dict)
 
@@ -280,7 +280,7 @@ def test_gemini_cmd(api_key: str | None):
 @click.option(
     "--backend",
     "-b",
-    type=click.Choice(["onnx", "llama", "gemini"], case_sensitive=False),
+    type=click.Choice(["onnx", "gemini"], case_sensitive=False),
     default=None,
     help="AI inference backend (auto-detected from model if not specified)",
 )
@@ -367,7 +367,7 @@ def review_changes(
 @click.option(
     "--backend",
     "-b",
-    type=click.Choice(["onnx", "llama", "gemini"], case_sensitive=False),
+    type=click.Choice(["onnx", "gemini"], case_sensitive=False),
     default=None,
     help="AI inference backend (auto-detected from model if not specified)",
 )
@@ -459,7 +459,7 @@ def review_message(
 @click.option(
     "--backend",
     "-b",
-    type=click.Choice(["onnx", "llama", "gemini"], case_sensitive=False),
+    type=click.Choice(["onnx", "gemini"], case_sensitive=False),
     default=None,
     help="AI inference backend (auto-detected from model if not specified)",
 )
@@ -818,7 +818,11 @@ def _resolve_model_path(model: str, backend: str | None = None) -> tuple[str, st
         # Auto-detect backend from file extension if not provided
         if backend is None:
             if model.endswith(".gguf") or model.endswith(".ggml"):
-                backend = "llama"
+                raise CLIError(
+                    "GGUF/GGML model files are not supported. "
+                    "Llama.cpp backend has been removed. "
+                    "Please use ONNX models instead."
+                )
             elif os.path.isdir(model):
                 # Assume ONNX if it's a directory
                 backend = "onnx"
@@ -854,7 +858,11 @@ def _resolve_model_path(model: str, backend: str | None = None) -> tuple[str, st
     # Try to detect backend from extension
     if backend is None:
         if model.endswith(".gguf") or model.endswith(".ggml"):
-            backend = "llama"
+            raise CLIError(
+                "GGUF/GGML model files are not supported. "
+                "Llama.cpp backend has been removed. "
+                "Please use ONNX models instead."
+            )
         else:
             backend = "onnx"  # Default fallback
         logger.debug(f"Auto-detected backend from filename: {backend}")
