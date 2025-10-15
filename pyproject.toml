@@ -66,10 +66,10 @@ all = [
 patchpatrol = "patchpatrol.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/patchpatrol/patchpatrol"
-Repository = "https://github.com/patchpatrol/patchpatrol"
-Issues = "https://github.com/patchpatrol/patchpatrol/issues"
-Documentation = "https://github.com/patchpatrol/patchpatrol/blob/main/README.md"
+Homepage = "https://github.com/4383/patchpatrol"
+Repository = "https://github.com/4383/patchpatrol"
+Issues = "https://github.com/4383/patchpatrol/issues"
+Documentation = "https://github.com/4383/patchpatrol/blob/main/README.md"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
