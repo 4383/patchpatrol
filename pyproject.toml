@@ -1,6 +1,6 @@
 [project]
 name = "patchpatrol"
-version = "0.2.0"
+dynamic = ["version"]
 description = "AI-powered commit review system for pre-commit hooks - Local (ONNX) or cloud (Gemini) analysis of Git commits"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -72,15 +72,17 @@ Issues = "https://github.com/4383/patchpatrol/issues"
 Documentation = "https://github.com/4383/patchpatrol/blob/main/README.md"
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["patchpatrol*"]
+[tool.hatch.version]
+source = "vcs"
 
-[tool.setuptools.package-data]
-patchpatrol = ["py.typed"]
+[tool.hatch.build.hooks.vcs]
+version-file = "patchpatrol/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["patchpatrol"]
 
 # Tool configurations for development
 
@@ -97,6 +99,9 @@ extend-exclude = '''
   | build
   | dist
 )/
+|
+# generated files
+.*/_version\.py
 '''
 
 [tool.isort]
@@ -130,6 +135,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"_version.py" = ["UP035", "I001", "UP006", "UP007"]  # Generated file, ignore style issues
 
 [tool.mypy]
 python_version = "3.10"

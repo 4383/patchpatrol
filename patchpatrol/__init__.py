@@ -5,7 +5,11 @@ A local, offline AI system that analyzes Git commits for code quality,
 coherence, and commit message clarity using ONNX backends.
 """
 
-__version__ = "0.1.0"
+try:
+    from ._version import __version__
+except ImportError:
+    # Fallback for development installs without hatch
+    __version__ = "dev"
 __author__ = "PatchPatrol Team"
 __email__ = "dev@patchpatrol.dev"
 

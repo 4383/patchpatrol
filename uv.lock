@@ -1342,7 +1342,6 @@ wheels = [
 
 [[package]]
 name = "patchpatrol"
-version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -1410,7 +1409,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'all'", specifier = ">=4.30.0" },
     { name = "transformers", marker = "extra == 'onnx'", specifier = ">=4.30.0" },
 ]
-provides-extras = ["onnx", "gemini", "test", "dev", "all"]
+provides-extras = ["all", "dev", "gemini", "onnx", "test"]
 
 [[package]]
 name = "pathspec"
