@@ -9,7 +9,6 @@ import logging
 import os
 import sys
 import warnings
-from typing import Optional
 
 import click
 
@@ -249,7 +248,7 @@ def clean_cache_cmd(keep: tuple, yes: bool):
 
 @main.command("test-gemini")
 @click.option("--api-key", help="Gemini API key (uses GEMINI_API_KEY env var if not provided)")
-def test_gemini_cmd(api_key: Optional[str]):
+def test_gemini_cmd(api_key: str | None):
     """Test Gemini API connectivity."""
     suppress_google_warnings()
 
@@ -328,7 +327,7 @@ def test_gemini_cmd(api_key: Optional[str]):
     help="Path to Git repository (default: current directory)",
 )
 def review_changes(
-    backend: Optional[str],
+    backend: str | None,
     model: str,
     device: str,
     threshold: float,
@@ -336,7 +335,7 @@ def review_changes(
     max_new_tokens: int,
     top_p: float,
     soft: bool,
-    repo_path: Optional[str],
+    repo_path: str | None,
 ):
     """
     Review staged changes before commit (pre-commit hook).
@@ -416,7 +415,7 @@ def review_changes(
 )
 @click.argument("commit_msg_file", required=False)
 def review_message(
-    backend: Optional[str],
+    backend: str | None,
     model: str,
     device: str,
     threshold: float,
@@ -424,8 +423,8 @@ def review_message(
     max_new_tokens: int,
     top_p: float,
     soft: bool,
-    repo_path: Optional[str],
-    commit_msg_file: Optional[str],
+    repo_path: str | None,
+    commit_msg_file: str | None,
 ):
     """
     Review commit message (commit-msg hook).
@@ -508,7 +507,7 @@ def review_message(
 )
 @click.argument("commit_msg_file", required=False)
 def review_complete(
-    backend: Optional[str],
+    backend: str | None,
     model: str,
     device: str,
     threshold: float,
@@ -516,8 +515,8 @@ def review_complete(
     max_new_tokens: int,
     top_p: float,
     soft: bool,
-    repo_path: Optional[str],
-    commit_msg_file: Optional[str],
+    repo_path: str | None,
+    commit_msg_file: str | None,
 ):
     """
     Review both staged changes and commit message together.
@@ -547,7 +546,7 @@ def review_complete(
 
 
 def _review_changes_impl(
-    backend: Optional[str],
+    backend: str | None,
     model: str,
     device: str,
     threshold: float,
@@ -555,7 +554,7 @@ def _review_changes_impl(
     max_new_tokens: int,
     top_p: float,
     soft: bool,
-    repo_path: Optional[str],
+    repo_path: str | None,
 ) -> int:
     """Implementation for review-changes command."""
     console.print("[bold blue]🔍 PatchPatrol - Reviewing staged changes...[/bold blue]")
@@ -608,7 +607,7 @@ def _review_changes_impl(
 
 
 def _review_message_impl(
-    backend: Optional[str],
+    backend: str | None,
     model: str,
     device: str,
     threshold: float,
@@ -616,8 +615,8 @@ def _review_message_impl(
     max_new_tokens: int,
     top_p: float,
     soft: bool,
-    repo_path: Optional[str],
-    commit_msg_file: Optional[str],
+    repo_path: str | None,
+    commit_msg_file: str | None,
 ) -> int:
     """Implementation for review-message command."""
     console.print("[bold blue]📝 PatchPatrol - Reviewing commit message...[/bold blue]")
@@ -664,7 +663,7 @@ def _review_message_impl(
 
 
 def _review_complete_impl(
-    backend: Optional[str],
+    backend: str | None,
     model: str,
     device: str,
     threshold: float,
@@ -672,8 +671,8 @@ def _review_complete_impl(
     max_new_tokens: int,
     top_p: float,
     soft: bool,
-    repo_path: Optional[str],
-    commit_msg_file: Optional[str],
+    repo_path: str | None,
+    commit_msg_file: str | None,
 ) -> int:
     """Implementation for review-complete command."""
     console.print("[bold blue]🔍📝 PatchPatrol - Comprehensive commit review...[/bold blue]")
@@ -731,7 +730,7 @@ def _review_complete_impl(
 
 
 def _run_ai_review(
-    backend: Optional[str],
+    backend: str | None,
     model: str,
     device: str,
     temperature: float,
@@ -802,7 +801,7 @@ def _run_ai_review(
         raise CLIError(f"Review failed: {e}") from e
 
 
-def _resolve_model_path(model: str, backend: Optional[str] = None) -> tuple[str, str]:
+def _resolve_model_path(model: str, backend: str | None = None) -> tuple[str, str]:
     """
     Resolve model path from name or path.
 

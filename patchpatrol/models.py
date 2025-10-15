@@ -11,7 +11,6 @@ import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -23,12 +22,12 @@ class ModelInfo:
 
     name: str
     backend: str  # "onnx", "llama", or "gemini"
-    url: Optional[str]  # None for API models
+    url: str | None  # None for API models
     size_mb: int
     description: str
-    sha256: Optional[str] = None
-    filename: Optional[str] = None
-    requirements: Optional[list[str]] = None
+    sha256: str | None = None
+    filename: str | None = None
+    requirements: list[str] | None = None
     is_api: bool = False  # True for API-based models
 
     def __post_init__(self):
@@ -161,7 +160,7 @@ DEFAULT_MODELS = {
 class ModelManager:
     """Manages model downloading, caching, and validation."""
 
-    def __init__(self, cache_dir: Optional[str] = None):
+    def __init__(self, cache_dir: str | None = None):
         """
         Initialize model manager.
 
@@ -414,7 +413,7 @@ class ModelManager:
             logger.error(f"Failed to remove model {model_name}: {e}")
             return False
 
-    def clean_cache(self, keep_models: Optional[list[str]] = None) -> int:
+    def clean_cache(self, keep_models: list[str] | None = None) -> int:
         """
         Clean the model cache.
 

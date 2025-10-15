@@ -4,11 +4,12 @@ ONNX Runtime backend for AI inference.
 This module implements the ONNX backend using optimum and transformers
 for local model execution with CPU or CUDA providers.
 """
+
 # mypy: disable-error-code=unreachable
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .base import BaseBackend, InferenceError, ModelLoadError
 
@@ -43,7 +44,7 @@ class ONNXBackend(BaseBackend):
         temperature: float = 0.2,
         max_new_tokens: int = 512,
         top_p: float = 0.9,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         **kwargs,
     ):
         """

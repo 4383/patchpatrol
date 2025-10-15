@@ -4,11 +4,12 @@ llama.cpp backend for AI inference.
 This module implements the llama.cpp backend using llama-cpp-python
 for local GGUF model execution.
 """
+
 # mypy: disable-error-code=unreachable
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .base import BaseBackend, InferenceError, ModelLoadError
 
@@ -39,7 +40,7 @@ class LlamaBackend(BaseBackend):
         top_p: float = 0.9,
         n_ctx: int = 4096,
         n_gpu_layers: int = 0,
-        n_threads: Optional[int] = None,
+        n_threads: int | None = None,
         **kwargs,
     ):
         """

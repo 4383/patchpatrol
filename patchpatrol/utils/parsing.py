@@ -9,7 +9,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class ReviewResult:
     verdict: str
     comments: list[str]
     raw_response: str
-    parsing_errors: Optional[list[str]] = None
+    parsing_errors: list[str] | None = None
 
     def is_approved(self, threshold: float = 0.7) -> bool:
         """Check if the review meets the approval threshold."""
@@ -54,7 +54,7 @@ class ParseError(Exception):
     pass
 
 
-def extract_json_from_text(text: str) -> Optional[dict[str, Any]]:
+def extract_json_from_text(text: str) -> dict[str, Any] | None:
     """
     Extract JSON object from AI model response text.
 
@@ -145,7 +145,7 @@ def validate_review_json(data: dict[str, Any]) -> tuple[bool, list[str]]:
 
     # Validate score
     score = data["score"]
-    if not isinstance(score, (int, float)):
+    if not isinstance(score, int | float):
         errors.append(f"Score must be a number, got {type(score).__name__}")
     elif not 0.0 <= score <= 1.0:
         errors.append(f"Score must be between 0.0 and 1.0, got {score}")

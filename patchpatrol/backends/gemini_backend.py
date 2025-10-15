@@ -7,7 +7,7 @@ for cloud-based model execution.
 
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 from .base import BaseBackend, InferenceError, ModelLoadError
 
@@ -36,7 +36,7 @@ class GeminiBackend(BaseBackend):
         temperature: float = 0.2,
         max_new_tokens: int = 512,
         top_p: float = 0.9,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         **kwargs,
     ):
         """
@@ -219,7 +219,7 @@ class GeminiBackend(BaseBackend):
 
 
 # Convenience function for testing API connectivity
-def test_gemini_connection(api_key: Optional[str] = None) -> bool:
+def test_gemini_connection(api_key: str | None = None) -> bool:
     """
     Test Gemini API connectivity.
 

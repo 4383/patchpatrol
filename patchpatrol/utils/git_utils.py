@@ -8,7 +8,7 @@ extract information needed for commit review.
 import logging
 import os
 import subprocess
-from typing import Any, Optional
+from typing import Any
 
 try:
     import git
@@ -38,7 +38,7 @@ class GitRepository:
     file information needed for AI review.
     """
 
-    def __init__(self, repo_path: Optional[str] = None):
+    def __init__(self, repo_path: str | None = None):
         """
         Initialize Git repository interface.
 
@@ -105,7 +105,7 @@ class GitRepository:
         except FileNotFoundError as e:
             raise GitError("Git command not found. Is Git installed?") from e
 
-    def get_staged_diff(self, max_lines: Optional[int] = None) -> str:
+    def get_staged_diff(self, max_lines: int | None = None) -> str:
         """
         Get the staged diff (changes ready to be committed).
 
@@ -225,7 +225,7 @@ class GitRepository:
             logger.error(f"Failed to get line counts: {e}")
             raise GitError(f"Failed to get line counts: {e}") from e
 
-    def get_commit_message(self, commit_msg_file: Optional[str] = None) -> str:
+    def get_commit_message(self, commit_msg_file: str | None = None) -> str:
         """
         Get the commit message being prepared.
 
@@ -318,29 +318,25 @@ class GitRepository:
 
 
 # Convenience functions for common operations
-def get_staged_diff(repo_path: Optional[str] = None, max_lines: Optional[int] = None) -> str:
+def get_staged_diff(repo_path: str | None = None, max_lines: int | None = None) -> str:
     """Get staged diff from repository."""
     repo = GitRepository(repo_path)
     return repo.get_staged_diff(max_lines)
 
 
-def get_changed_files(repo_path: Optional[str] = None, staged_only: bool = True) -> list[str]:
+def get_changed_files(repo_path: str | None = None, staged_only: bool = True) -> list[str]:
     """Get list of changed files."""
     repo = GitRepository(repo_path)
     return repo.get_changed_files(staged_only)
 
 
-def get_commit_message(
-    commit_msg_file: Optional[str] = None, repo_path: Optional[str] = None
-) -> str:
+def get_commit_message(commit_msg_file: str | None = None, repo_path: str | None = None) -> str:
     """Get commit message being prepared."""
     repo = GitRepository(repo_path)
     return repo.get_commit_message(commit_msg_file)
 
 
-def get_lines_of_change(
-    repo_path: Optional[str] = None, staged_only: bool = True
-) -> tuple[int, int]:
+def get_lines_of_change(repo_path: str | None = None, staged_only: bool = True) -> tuple[int, int]:
     """Get lines added and removed."""
     repo = GitRepository(repo_path)
     return repo.get_lines_of_change(staged_only)
