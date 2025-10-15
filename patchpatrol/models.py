@@ -208,6 +208,8 @@ class ModelManager:
         if model_info.is_api:
             return True
 
+        # Non-API models must have a filename
+        assert model_info.filename is not None, f"Non-API model {model_name} missing filename"
         model_path = self.cache_dir / model_name / model_info.filename
         return model_path.exists()
 
@@ -239,6 +241,8 @@ class ModelManager:
         if model_info.is_api:
             return model_name
 
+        # Non-API models must have a filename
+        assert model_info.filename is not None, f"Non-API model {model_name} missing filename"
         model_dir = self.cache_dir / model_name
         model_path = model_dir / model_info.filename
 
@@ -277,6 +281,10 @@ class ModelManager:
         if model_info.is_api:
             logger.info(f"API model '{model_name}' ready to use")
             return model_name
+
+        # Non-API models must have filename and URL
+        assert model_info.filename is not None, f"Non-API model {model_name} missing filename"
+        assert model_info.url is not None, f"Non-API model {model_name} missing URL"
 
         model_dir = self.cache_dir / model_name
         model_path = model_dir / model_info.filename
@@ -362,6 +370,7 @@ class ModelManager:
     def _download_onnx_files(self, model_info: ModelInfo, model_dir: Path) -> None:
         """Download additional files needed for ONNX models."""
         # For ONNX models, we typically need config.json and tokenizer files
+        assert model_info.url is not None, "ONNX model missing URL"
         base_url = model_info.url.rsplit("/", 1)[0]
 
         additional_files = ["config.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt"]

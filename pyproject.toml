@@ -159,6 +159,13 @@ module = [
     "transformers.*",
     "google.generativeai.*",
     "google.ai.*",
+    "google.*",
+    "git.*",
+    "click.*",
+    "rich.*",
+    "torch.*",
+    "absl.*",
+    "pytest.*",
 ]
 ignore_missing_imports = true
 

@@ -46,7 +46,7 @@ class GitRepository:
             repo_path: Path to Git repository (uses current directory if None)
         """
         self.repo_path = repo_path or os.getcwd()
-        self._repo = None
+        self._repo: Any = None
         self._use_subprocess = not GIT_PYTHON_AVAILABLE
 
         if not self._use_subprocess:
@@ -122,6 +122,7 @@ class GitRepository:
             if self._use_subprocess:
                 diff = self._run_git_command(["diff", "--cached"])
             else:
+                assert self._repo is not None, "GitPython repo not initialized"
                 diff = self._repo.git.diff("--cached")
 
             if max_lines is not None:
@@ -157,6 +158,7 @@ class GitRepository:
                     output = self._run_git_command(["diff", "--name-only"])
                 files = [f.strip() for f in output.split("\n") if f.strip()]
             else:
+                assert self._repo is not None, "GitPython repo not initialized"
                 if staged_only:
                     files = [item.a_path for item in self._repo.index.diff("HEAD")]
                 else:
@@ -203,6 +205,7 @@ class GitRepository:
 
             else:
                 # Using GitPython
+                assert self._repo is not None, "GitPython repo not initialized"
                 if staged_only:
                     diffs = self._repo.index.diff("HEAD")
                 else:
@@ -265,6 +268,7 @@ class GitRepository:
                 git_dir = os.path.join(self.repo_path, git_dir)
             return git_dir
         else:
+            assert self._repo is not None, "GitPython repo not initialized"
             return self._repo.git_dir  # type: ignore[no-any-return]
 
     def has_staged_changes(self) -> bool:
@@ -274,6 +278,7 @@ class GitRepository:
                 _ = self._run_git_command(["diff", "--cached", "--quiet"])
                 return False  # No staged changes (command succeeded)
             else:
+                assert self._repo is not None, "GitPython repo not initialized"
                 return len(self._repo.index.diff("HEAD")) > 0
 
         except GitError:
@@ -303,6 +308,7 @@ class GitRepository:
                     }
                 )
             else:
+                assert self._repo is not None, "GitPython repo not initialized"
                 info.update(
                     {
                         "current_branch": self._repo.active_branch.name,

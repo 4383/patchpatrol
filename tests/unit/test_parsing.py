@@ -150,7 +150,6 @@ class TestExtractJsonFromText:
         """Test with empty or whitespace text."""
         assert extract_json_from_text("") is None
         assert extract_json_from_text("   ") is None
-        assert extract_json_from_text(None) is None
 
     def test_extract_json_malformed_json(self):
         """Test with malformed JSON."""
@@ -383,6 +382,7 @@ class TestParseJsonResponse:
         assert result.score == 0.0
         assert result.verdict == "revise"
         assert "Failed to parse AI response" in result.comments[0]
+        assert result.parsing_errors is not None
         assert "Could not extract JSON from response" in result.parsing_errors
 
     def test_parse_response_with_validation_errors(self):

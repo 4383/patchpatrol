@@ -837,11 +837,15 @@ def _resolve_model_path(model: str, backend: str | None = None) -> tuple[str, st
             if resolved_name in MODEL_REGISTRY:
                 backend = MODEL_REGISTRY[resolved_name].backend
                 logger.debug(f"Auto-detected backend from registry: {backend}")
+            else:
+                # Fallback if model not found in registry (shouldn't happen)
+                backend = "onnx"
 
         logger.info(f"Resolving model '{model}' from registry...")
 
         # This will download if not cached
         model_path = get_model_path(model)
+        assert backend is not None, "Backend should be detected by now"
         return model_path, backend
 
     # Assume it's a direct path that doesn't exist yet
