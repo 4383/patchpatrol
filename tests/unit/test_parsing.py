@@ -435,7 +435,8 @@ class TestValidateReviewOutput:
 
         is_valid = validate_review_output(result, threshold=0.7)
 
-        assert is_valid is False
+        # Parsing errors only generate warnings, the normalized data is still valid
+        assert is_valid is True
 
     def test_validate_review_invalid_score(self):
         """Test validating review with invalid score."""

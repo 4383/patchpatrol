@@ -8,20 +8,45 @@ extract information needed for commit review.
 import logging
 import os
 import subprocess
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-try:
+if TYPE_CHECKING:
+    # For type checking, assume imports succeed
     import git
     from git import InvalidGitRepositoryError, Repo
+else:
+    # Runtime imports with fallbacks
+    try:
+        import git
+        from git import InvalidGitRepositoryError, Repo
 
+        GIT_PYTHON_AVAILABLE = True
+    except ImportError:
+        GIT_PYTHON_AVAILABLE = False
+        git = None  # type: ignore[assignment]
+        Repo = None  # type: ignore[assignment]
+        InvalidGitRepositoryError = Exception  # type: ignore[assignment]
+
+# Set availability flag if not set in TYPE_CHECKING block
+if TYPE_CHECKING:
     GIT_PYTHON_AVAILABLE = True
-except ImportError:
-    GIT_PYTHON_AVAILABLE = False
-    git = None
-    Repo = None
-    InvalidGitRepositoryError = Exception
 
 logger = logging.getLogger(__name__)
+
+
+def _check_git_availability() -> bool:
+    """Check if Git is available in the system."""
+    try:
+        result = subprocess.run(
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            shell=os.name == "nt",  # Use shell on Windows
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False
 
 
 class GitError(Exception):
@@ -56,6 +81,10 @@ class GitRepository:
                 raise GitError(f"Not a Git repository: {self.repo_path}") from e
         else:
             # Fallback to subprocess if GitPython is not available
+            if not _check_git_availability():
+                raise GitError(
+                    "Git command not available. Please ensure Git is installed and in PATH."
+                )
             if not self._is_git_repo():
                 raise GitError(f"Not a Git repository: {self.repo_path}")
 
@@ -68,6 +97,7 @@ class GitRepository:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                shell=os.name == "nt",  # Use shell on Windows
             )
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -93,6 +123,7 @@ class GitRepository:
                 capture_output=True,
                 text=True,
                 timeout=30,  # Reasonable timeout for Git operations
+                shell=os.name == "nt",  # Use shell on Windows
             )
 
             if result.returncode != 0:
@@ -103,7 +134,11 @@ class GitRepository:
         except subprocess.TimeoutExpired as e:
             raise GitError(f"Git command timed out: {' '.join(['git'] + args)}") from e
         except FileNotFoundError as e:
-            raise GitError("Git command not found. Is Git installed?") from e
+            git_help = "Git command not found. On Windows, ensure Git is installed and in PATH."
+            raise GitError(git_help) from e
+        except OSError as e:
+            # Handle Windows-specific path or permission issues
+            raise GitError(f"Git command failed due to system error: {e}") from e
 
     def get_staged_diff(self, max_lines: int | None = None) -> str:
         """

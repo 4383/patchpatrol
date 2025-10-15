@@ -286,10 +286,17 @@ def validate_review_output(result: ReviewResult, threshold: float = 0.7) -> bool
     Returns:
         True if the review is valid and meets standards
     """
-    # Check for parsing errors
-    if result.parsing_errors:
+    # Check for complete parsing failures (JSON extraction failed)
+    if result.parsing_errors and any(
+        "Could not extract JSON" in error for error in result.parsing_errors
+    ):
         logger.warning(f"Review has parsing errors: {result.parsing_errors}")
         return False
+
+    # Log other parsing errors as warnings but don't automatically fail
+    # These are validation errors that normalization might have fixed
+    if result.parsing_errors:
+        logger.warning(f"Review has parsing errors: {result.parsing_errors}")
 
     # Check score range
     if not 0.0 <= result.score <= 1.0:

@@ -175,13 +175,20 @@ class TestModelManagementCommands:
         assert "Removed" in result.output
 
     @patch("patchpatrol.cli.get_model_manager")
-    def test_cache_info(self, mock_get_manager):
+    @patch("patchpatrol.cli.MODEL_REGISTRY")
+    def test_cache_info(self, mock_registry, mock_get_manager):
         """Test cache-info command."""
         mock_manager = Mock()
-        mock_manager.list_cached_models.return_value = ["model1", "model2"]
+        mock_manager.list_cached_models.return_value = ["granite-3b-code", "codegemma-2b"]
         mock_manager.get_cache_size.return_value = 1024 * 1024 * 100  # 100MB
         mock_manager.cache_dir = "/path/to/cache"
         mock_get_manager.return_value = mock_manager
+
+        # Mock MODEL_REGISTRY entries
+        mock_model_info = Mock()
+        mock_model_info.size_mb = 1800
+        mock_model_info.backend = "llama"
+        mock_registry.__getitem__.return_value = mock_model_info
 
         runner = CliRunner()
         result = runner.invoke(main, ["cache-info"])
@@ -221,7 +228,7 @@ class TestModelManagementCommands:
 class TestTestGeminiCommand:
     """Test test-gemini command."""
 
-    @patch("patchpatrol.cli.test_gemini_connection")
+    @patch("patchpatrol.backends.gemini_backend.test_gemini_connection")
     def test_test_gemini_success(self, mock_test_connection):
         """Test successful Gemini connection test."""
         mock_test_connection.return_value = True
@@ -232,7 +239,7 @@ class TestTestGeminiCommand:
         assert result.exit_code == 0
         assert "connection successful" in result.output
 
-    @patch("patchpatrol.cli.test_gemini_connection")
+    @patch("patchpatrol.backends.gemini_backend.test_gemini_connection")
     def test_test_gemini_failure(self, mock_test_connection):
         """Test failed Gemini connection test."""
         mock_test_connection.return_value = False

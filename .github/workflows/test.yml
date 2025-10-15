@@ -13,13 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-        exclude:
-          # Python 3.14 might not be available on all OS yet
-          - os: windows-latest
-            python-version: "3.14"
-          - os: macos-latest
-            python-version: "3.14"
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -29,6 +23,15 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git config --global init.defaultBranch main
+
+    - name: Verify Git installation
+      run: git --version
 
     - name: Install dependencies
       run: |

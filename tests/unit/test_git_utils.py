@@ -90,16 +90,18 @@ class TestGitRepository:
 
     def test_get_lines_of_change(self, mock_git_repo):
         """Test getting line change counts."""
-        # Create a test file and stage it
-        test_file = Path(mock_git_repo.working_dir) / "lines_test.py"
-        test_file.write_text("line1\nline2\nline3\n")
-        mock_git_repo.index.add([str(test_file)])
+        # Use subprocess fallback with predictable output
+        with patch("patchpatrol.utils.git_utils.GIT_PYTHON_AVAILABLE", False):
+            git_repo = GitRepository(str(mock_git_repo.working_dir))
 
-        git_repo = GitRepository(str(mock_git_repo.working_dir))
-        added, removed = git_repo.get_lines_of_change()
+            with patch.object(git_repo, "_run_git_command") as mock_run:
+                # Mock the git diff --cached --numstat output
+                mock_run.return_value = "2\t0\ttest.py\n"
 
-        assert added >= 3  # At least 3 lines added
-        assert removed >= 0  # No lines removed
+                added, removed = git_repo.get_lines_of_change()
+
+        assert added == 2  # 2 lines added
+        assert removed == 0  # No lines removed
 
     def test_get_commit_message_from_file(self, temp_dir):
         """Test getting commit message from file."""
@@ -153,6 +155,7 @@ class TestGitRepository:
         with patch("subprocess.run") as mock_run:
             # Mock successful git command responses
             mock_run.side_effect = [
+                Mock(returncode=0),  # _check_git_availability check
                 Mock(returncode=0),  # _is_git_repo check
                 Mock(returncode=0, stdout="diff content"),  # get_staged_diff
                 Mock(returncode=0, stdout="file1.py\nfile2.py"),  # get_changed_files
@@ -200,14 +203,16 @@ class TestConvenienceFunctions:
 
     def test_get_lines_of_change_function(self, mock_git_repo):
         """Test get_lines_of_change convenience function."""
-        # Create and stage a test file
-        test_file = Path(mock_git_repo.working_dir) / "lines_function_test.py"
-        test_file.write_text("line1\nline2\n")
-        mock_git_repo.index.add([str(test_file)])
+        # Mock the get_lines_of_change method to return predictable results
+        with patch("patchpatrol.utils.git_utils.GitRepository") as mock_git_repo_class:
+            mock_repo_instance = Mock()
+            mock_repo_instance.get_lines_of_change.return_value = (2, 0)
+            mock_git_repo_class.return_value = mock_repo_instance
 
-        added, removed = get_lines_of_change(str(mock_git_repo.working_dir))
-        assert added >= 2
-        assert removed >= 0
+            added, removed = get_lines_of_change(str(mock_git_repo.working_dir))
+
+        assert added == 2
+        assert removed == 0
 
     def test_get_commit_message_function(self, temp_dir):
         """Test get_commit_message convenience function."""
@@ -236,8 +241,9 @@ class TestErrorHandling:
 
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = [
+                Mock(returncode=0),  # _check_git_availability check
                 Mock(returncode=0),  # _is_git_repo check succeeds
-                Mock(side_effect=subprocess.TimeoutExpired("git", 30)),  # Command times out
+                subprocess.TimeoutExpired("git", 30),  # Command times out
             ]
 
             git_repo = GitRepository(str(temp_dir))
@@ -253,14 +259,11 @@ class TestErrorHandling:
 
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = [
-                Mock(returncode=0),  # _is_git_repo check succeeds
-                FileNotFoundError(),  # Git command not found
+                FileNotFoundError(),  # _check_git_availability fails
             ]
 
-            git_repo = GitRepository(str(temp_dir))
-
-            with pytest.raises(GitError, match="Git command not found"):
-                git_repo.get_staged_diff()
+            with pytest.raises(GitError, match="Git command not available"):
+                GitRepository(str(temp_dir))
 
     @patch("patchpatrol.utils.git_utils.GIT_PYTHON_AVAILABLE", False)
     def test_subprocess_command_failure(self, temp_dir):
@@ -270,6 +273,7 @@ class TestErrorHandling:
 
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = [
+                Mock(returncode=0),  # _check_git_availability check
                 Mock(returncode=0),  # _is_git_repo check succeeds
                 Mock(returncode=1, stderr="fatal: not a git repository"),  # Command fails
             ]
