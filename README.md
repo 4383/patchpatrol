@@ -1,8 +1,21 @@
 <div align="center">
-  <img src="logo.png" alt="PatchPatrol Logo" height="300">
+  <img src="https://raw.githubusercontent.com/4383/patchpatrol/main/logo.png" alt="PatchPatrol Logo" height="300">
 </div>
 
 # PatchPatrol
+
+<div align="center">
+
+[![Tests](https://github.com/4383/patchpatrol/workflows/Tests/badge.svg)](https://github.com/4383/patchpatrol/actions)
+[![PyPI version](https://badge.fury.io/py/patchpatrol.svg)](https://badge.fury.io/py/patchpatrol)
+[![Python versions](https://img.shields.io/pypi/pyversions/patchpatrol.svg)](https://pypi.org/project/patchpatrol/)
+[![Development Status](https://img.shields.io/pypi/status/patchpatrol.svg)](https://pypi.org/project/patchpatrol/)
+[![Downloads](https://static.pepy.tech/badge/patchpatrol)](https://pepy.tech/project/patchpatrol)
+[![Downloads per month](https://static.pepy.tech/badge/patchpatrol/month)](https://pepy.tech/project/patchpatrol)
+[![License](https://img.shields.io/pypi/l/patchpatrol.svg)](https://github.com/4383/patchpatrol/blob/main/LICENSE)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+</div>
 
 **AI-powered commit review system for pre-commit hooks**
 
