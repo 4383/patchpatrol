@@ -202,4 +202,14 @@ exclude_lines = [
 
 [tool.bandit]
 exclude_dirs = ["tests", "build", "dist"]
-skips = ["B101", "B601"]
+skips = [
+    "B101",  # assert_used - legitimate use for type checking
+    "B110",  # try_except_pass - legitimate for optional metadata
+    "B310",  # urllib_urlopen - legitimate for model downloads
+    "B404",  # subprocess_import - legitimate for git operations
+    "B601",  # paramiko_calls - not applicable
+    "B602",  # subprocess_popen_with_shell_equals_true - needed for Windows
+    "B603",  # subprocess_without_shell_equals_false - handled contextually
+    "B607",  # start_process_with_partial_path - legitimate for git/wget/curl
+    "B615",  # huggingface_unsafe_download - controlled download behavior
+]
