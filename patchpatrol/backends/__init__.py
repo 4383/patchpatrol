@@ -1,7 +1,7 @@
 """
 Backend implementations for AI inference.
 
-Supports ONNX Runtime backends for local model execution.
+Supports ONNX Runtime, llama.cpp, and Gemini backends for local and cloud model execution.
 """
 
 from .base import BaseBackend

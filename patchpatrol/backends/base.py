@@ -2,7 +2,7 @@
 Base backend interface for AI inference engines.
 
 This module defines the common interface that all backend implementations
-must follow for consistent behavior across ONNX engines.
+must follow for consistent behavior across ONNX, llama.cpp, and Gemini engines.
 """
 
 import logging
@@ -160,7 +160,7 @@ def get_backend(backend_type: str, **kwargs) -> BaseBackend:
     Factory function to create backend instances.
 
     Args:
-        backend_type: Type of backend ("onnx" or "gemini")
+        backend_type: Type of backend ("onnx", "llama", or "gemini")
         **kwargs: Parameters to pass to backend constructor
 
     Returns:
@@ -183,6 +183,17 @@ def get_backend(backend_type: str, **kwargs) -> BaseBackend:
                 "Install with: pip install patchpatrol[onnx]"
             ) from e
 
+    elif backend_type == "llama":
+        try:
+            from .llama_backend import LlamaBackend
+
+            return LlamaBackend(**kwargs)
+        except ImportError as e:
+            raise ImportError(
+                "Llama backend requires 'llama-cpp-python'. "
+                "Install with: pip install patchpatrol[llama]"
+            ) from e
+
     elif backend_type == "gemini":
         try:
             from .gemini_backend import GeminiBackend
@@ -196,5 +207,6 @@ def get_backend(backend_type: str, **kwargs) -> BaseBackend:
 
     else:
         raise ValueError(
-            f"Unsupported backend type: {backend_type}. " "Supported types: 'onnx', 'gemini'"
+            f"Unsupported backend type: {backend_type}. "
+            "Supported types: 'onnx', 'llama', 'gemini'"
         )
