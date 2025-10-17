@@ -33,6 +33,145 @@ PatchPatrol is a flexible AI system that analyzes Git commits for code quality, 
 - **Configurable**: Soft/hard modes, custom thresholds, and extensible prompts
 - **Pre-commit Integration**: Drop-in compatibility with existing workflows
 - **Rich Output**: Beautiful terminal output with colors and formatting
+- **Security Review Mode**: Specialized security analysis with OWASP Top 10 integration
+
+## Security Review Mode
+
+PatchPatrol includes specialized security analysis capabilities that go beyond code quality to identify vulnerabilities, security weaknesses, and compliance risks using OWASP Top 10 patterns and CWE classifications.
+
+### Security vs Code Quality Modes
+
+| Aspect | Code Quality Mode (default) | Security Mode |
+|--------|------------------------------|---------------|
+| **Focus** | Code structure, style, best practices | Security vulnerabilities, attack vectors |
+| **Analysis** | Readability, maintainability, performance | OWASP Top 10, CWE patterns, secrets detection |
+| **Output** | Quality score (0.0-1.0, higher = better) | Risk score (0.0-1.0, lower = more secure) |
+| **Verdict** | `approve`, `revise` | `approve`, `revise`, `security_risk` |
+| **Expertise** | Software engineering best practices | Cybersecurity and penetration testing |
+
+### Security Analysis Features
+
+- **🔍 Vulnerability Detection**: OWASP Top 10 2021, CWE Top 25 patterns
+- **🔐 Secrets Scanning**: API keys, passwords, tokens, certificates
+- **💉 Injection Analysis**: SQL, command, XSS, template injection detection
+- **🔒 Crypto Review**: Weak encryption, key management, randomness issues
+- **🛡️ Access Control**: Authentication, authorization, privilege escalation
+- **📊 Compliance Mapping**: SOC2, PCI-DSS, GDPR, HIPAA impact assessment
+- **🚨 Risk Scoring**: CRITICAL, HIGH, MEDIUM, LOW severity levels
+
+### Security Review Examples
+
+#### Basic Security Review
+```bash
+# Review staged changes for security vulnerabilities
+patchpatrol review-changes --mode security --model granite-3b-code
+
+# Review commit message for security disclosure risks
+patchpatrol review-message --mode security --model cloud
+
+# Comprehensive security analysis (changes + message)
+patchpatrol review-complete --mode security --model quality --threshold 0.3
+```
+
+#### Historical Security Audit
+```bash
+# Analyze historical commits for security issues
+patchpatrol review-commit --mode security --model cloud abc123d
+
+# Audit last 5 commits for vulnerabilities
+for sha in $(git log --format="%h" -5); do
+  echo "Security audit for commit $sha..."
+  patchpatrol review-commit --mode security --model granite-8b-code $sha
+done
+```
+
+#### Security Output Example
+```json
+{
+  "score": 0.8,
+  "verdict": "security_risk",
+  "severity": "HIGH",
+  "comments": [
+    "Multiple critical security vulnerabilities detected",
+    "Hardcoded credentials found in configuration",
+    "SQL injection vulnerability in authentication logic"
+  ],
+  "security_issues": [
+    {
+      "category": "secrets",
+      "severity": "CRITICAL",
+      "cwe": "CWE-798",
+      "description": "Hardcoded API key found in config.py line 15",
+      "file": "config.py",
+      "line": 15,
+      "remediation": "Move API key to environment variable or secure vault"
+    },
+    {
+      "category": "injection",
+      "severity": "HIGH",
+      "cwe": "CWE-89",
+      "description": "SQL injection in user authentication query",
+      "file": "auth.py",
+      "line": 42,
+      "remediation": "Use parameterized queries or ORM with proper escaping"
+    }
+  ],
+  "owasp_categories": [
+    "A03:2021-Injection",
+    "A07:2021-Identification and Authentication Failures"
+  ],
+  "compliance_impact": ["SOC2", "PCI-DSS", "GDPR"]
+}
+```
+
+#### Terminal Security Output
+```
+🔒 SECURITY RISK | Score: 0.80 | Severity: HIGH
+
+Comments:
+  1. Multiple critical security vulnerabilities detected
+  2. Hardcoded credentials found in configuration
+  3. SQL injection vulnerability in authentication logic
+
+Security Issues:
+  🚨 CRITICAL | CWE-798 | Secrets
+     Hardcoded API key found in config.py line 15
+     → Move API key to environment variable or secure vault
+
+  ⚠️  HIGH | CWE-89 | Injection
+     SQL injection in user authentication query (auth.py:42)
+     → Use parameterized queries or ORM with proper escaping
+
+OWASP Categories:
+  • A03:2021-Injection
+  • A07:2021-Identification and Authentication Failures
+
+Compliance Impact: SOC2, PCI-DSS, GDPR
+
+✗ Staged changes rejected (security vulnerabilities found)
+```
+
+### Security Thresholds
+
+For security mode, the score represents **risk level** (inverted from quality mode):
+
+| Risk Score | Security Level | Recommendation |
+|------------|----------------|----------------|
+| 0.0-0.2 | ✅ **Secure** | Low risk, approve |
+| 0.3-0.5 | ⚠️ **Moderate Risk** | Review recommended |
+| 0.6-0.8 | 🚨 **High Risk** | Security review required |
+| 0.9-1.0 | 🔴 **Critical Risk** | Block until fixed |
+
+```bash
+# Conservative security threshold (block anything above low risk)
+patchpatrol review-changes --mode security --threshold 0.2 --hard
+
+# Balanced security threshold (allow moderate risk)
+patchpatrol review-changes --mode security --threshold 0.5 --soft
+
+# Permissive threshold (only block critical vulnerabilities)
+patchpatrol review-changes --mode security --threshold 0.8 --soft
+```
 
 ## Quick Start
 
@@ -90,30 +229,42 @@ pip install patchpatrol[all]
      - repo: https://github.com/patchpatrol/patchpatrol
        rev: v0.1.0
        hooks:
+         # Code quality review (default)
          - id: patchpatrol-review-changes
            args: [--model=ci, --soft]  # Uses fast CI-optimized model
          - id: patchpatrol-review-message
            args: [--model=cloud, --threshold=0.8]  # Uses Gemini API
+
+         # Security review mode
+         - id: patchpatrol-review-changes
+           name: security-review-changes
+           args: [--mode=security, --model=quality, --threshold=0.3, --hard]
+         - id: patchpatrol-review-message
+           name: security-review-message
+           args: [--mode=security, --model=cloud, --threshold=0.2, --hard]
    ```
 
 ### Perfect for CI/CD
 
 ```yaml
-# GitHub Actions with local models
-- name: AI Code Review (Local)
+# GitHub Actions with code quality + security review
+- name: AI Code Quality Review
   run: |
     pip install patchpatrol[llama]
     patchpatrol review-changes --model ci --hard
-    # Model downloads automatically on first run
 
-# GitHub Actions with Gemini API
-- name: AI Code Review (Gemini)
+- name: AI Security Review
+  run: |
+    pip install patchpatrol[llama]
+    patchpatrol review-changes --mode security --model quality --threshold 0.3 --hard
+
+# GitHub Actions with Gemini API for security
+- name: Advanced Security Analysis
   env:
     GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   run: |
     pip install patchpatrol[gemini]
-    patchpatrol review-changes --model cloud --hard
-    # No model download needed, uses API
+    patchpatrol review-complete --mode security --model cloud --threshold 0.2 --hard
 ```
 
 ## Detailed Usage
@@ -155,36 +306,42 @@ All review commands support both model names and file paths.
 patchpatrol review-changes [OPTIONS]
 
 Options:
-  --backend [onnx|llama|gemini]  Backend (auto-detected if not specified)
-  --model NAME_OR_PATH       Model name or path (required)
-  --device [cpu|cuda|cloud]  Compute device (default: cpu, cloud for API models)
-  --threshold FLOAT          Minimum acceptance score 0.0-1.0 (default: 0.7)
-  --temperature FLOAT        Sampling temperature 0.0-1.0 (default: 0.2)
-  --max-new-tokens INTEGER   Maximum tokens to generate (default: 512)
-  --top-p FLOAT             Top-p sampling 0.0-1.0 (default: 0.9)
-  --soft/--hard             Soft warnings vs hard blocking (default: soft)
-  --repo-path PATH          Git repository path (default: current)
+  --mode [code-quality|security]  Review mode (default: code-quality)
+  --backend [onnx|llama|gemini]   Backend (auto-detected if not specified)
+  --model NAME_OR_PATH            Model name or path (required)
+  --device [cpu|cuda|cloud]       Compute device (default: cpu, cloud for API models)
+  --threshold FLOAT               Acceptance score/risk threshold 0.0-1.0 (default: 0.7)
+  --temperature FLOAT             Sampling temperature 0.0-1.0 (default: 0.2)
+  --max-new-tokens INTEGER        Maximum tokens to generate (default: 512)
+  --top-p FLOAT                  Top-p sampling 0.0-1.0 (default: 0.9)
+  --soft/--hard                  Soft warnings vs hard blocking (default: soft)
+  --repo-path PATH               Git repository path (default: current)
 ```
 
-**Examples:**
+**Code Quality Examples:**
 ```bash
-# Using local model names (auto-download)
+# Standard code quality review
 patchpatrol review-changes --model granite-3b-code
-patchpatrol review-changes --model ci --hard
+patchpatrol review-changes --mode code-quality --model ci --hard
 
-# Using cloud models (Gemini API)
+# Cloud-based quality analysis
 export GEMINI_API_KEY="your-api-key"
-patchpatrol review-changes --model cloud
-patchpatrol review-changes --model gemini-2.0-flash-exp --backend gemini
+patchpatrol review-changes --model cloud --threshold 0.8
+```
 
-# Using file paths
-patchpatrol review-changes --model ./models/my-model.onnx  # ONNX directory/file
-patchpatrol review-changes --model ./models/my-model.gguf  # GGUF file
+**Security Review Examples:**
+```bash
+# Security vulnerability analysis
+patchpatrol review-changes --mode security --model quality --threshold 0.3
 
-# Backend auto-detection
-patchpatrol review-changes --model distilgpt2-onnx    # auto-detects onnx backend
-patchpatrol review-changes --model granite-3b-code    # auto-detects llama backend
-patchpatrol review-changes --model cloud              # auto-detects gemini backend
+# High-security threshold (block moderate+ risk)
+patchpatrol review-changes --mode security --model cloud --threshold 0.2 --hard
+
+# Comprehensive security scan with local model
+patchpatrol review-changes --mode security --model granite-8b-code --threshold 0.4
+
+# Using file paths for custom security models
+patchpatrol review-changes --mode security --model ./models/security-model.gguf
 ```
 
 ##### `review-message` - Analyze Commit Messages
@@ -192,8 +349,20 @@ patchpatrol review-changes --model cloud              # auto-detects gemini back
 ```bash
 patchpatrol review-message [OPTIONS] [COMMIT_MSG_FILE]
 
-# Same options as review-changes
+# Same options as review-changes (including --mode security)
 # COMMIT_MSG_FILE: Path to commit message file (auto-detected if not provided)
+```
+
+**Examples:**
+```bash
+# Code quality message review
+patchpatrol review-message --model ci
+
+# Security disclosure risk analysis
+patchpatrol review-message --mode security --model cloud --threshold 0.2
+
+# Review specific message file for security risks
+patchpatrol review-message --mode security --model quality .git/COMMIT_EDITMSG
 ```
 
 ##### `review-complete` - Comprehensive Review
@@ -202,6 +371,19 @@ patchpatrol review-message [OPTIONS] [COMMIT_MSG_FILE]
 patchpatrol review-complete [OPTIONS] [COMMIT_MSG_FILE]
 
 # Reviews both staged changes and commit message together
+# Same options as review-changes (including --mode security)
+```
+
+**Examples:**
+```bash
+# Complete code quality review
+patchpatrol review-complete --model granite-3b-code
+
+# Comprehensive security analysis (changes + message)
+patchpatrol review-complete --mode security --model cloud --threshold 0.3 --hard
+
+# Full security audit with local model
+patchpatrol review-complete --mode security --model granite-8b-code --threshold 0.2
 ```
 
 ##### `review-commit` - Analyze Historical Commits
@@ -210,35 +392,44 @@ patchpatrol review-complete [OPTIONS] [COMMIT_MSG_FILE]
 patchpatrol review-commit [OPTIONS] COMMIT_SHA
 
 Options:
-  --backend [onnx|llama|gemini]  Backend (auto-detected if not specified)
-  --model NAME_OR_PATH       Model name or path (required)
-  --device [cpu|cuda|cloud]  Compute device (default: cpu, cloud for API models)
-  --threshold FLOAT          Minimum acceptance score 0.0-1.0 (default: 0.7)
-  --temperature FLOAT        Sampling temperature 0.0-1.0 (default: 0.2)
-  --max-new-tokens INTEGER   Maximum tokens to generate (default: 512)
-  --top-p FLOAT             Top-p sampling 0.0-1.0 (default: 0.9)
-  --repo-path PATH          Git repository path (default: current)
+  --mode [code-quality|security]  Review mode (default: code-quality)
+  --backend [onnx|llama|gemini]   Backend (auto-detected if not specified)
+  --model NAME_OR_PATH            Model name or path (required)
+  --device [cpu|cuda|cloud]       Compute device (default: cpu, cloud for API models)
+  --threshold FLOAT               Acceptance score/risk threshold 0.0-1.0 (default: 0.7)
+  --temperature FLOAT             Sampling temperature 0.0-1.0 (default: 0.2)
+  --max-new-tokens INTEGER        Maximum tokens to generate (default: 512)
+  --top-p FLOAT                  Top-p sampling 0.0-1.0 (default: 0.9)
+  --repo-path PATH               Git repository path (default: current)
 
 # COMMIT_SHA: The commit SHA to review (full or short SHA)
 ```
 
-**Examples:**
+**Code Quality Examples:**
 ```bash
-# Review a specific commit by full SHA
-patchpatrol review-commit --model granite-3b-code abc123def456789abcdef123456789abcdef0123
+# Review specific commit for code quality
+patchpatrol review-commit --model granite-3b-code abc123d
 
-# Review using short SHA (7-8 characters)
-patchpatrol review-commit --model ci abc123d
-
-# Review with cloud-based analysis
+# Review with cloud analysis
 export GEMINI_API_KEY="your-api-key"
-patchpatrol review-commit --model cloud def456a
+patchpatrol review-commit --model cloud --threshold 0.8 def456a
+```
 
-# Review with custom threshold for historical analysis
-patchpatrol review-commit --model quality --threshold 0.8 abc123d
+**Security Audit Examples:**
+```bash
+# Historical security analysis
+patchpatrol review-commit --mode security --model quality --threshold 0.3 abc123d
 
-# Review commits from different repository
-patchpatrol review-commit --model granite-3b-code --repo-path /path/to/repo abc123d
+# Security audit of recent commits
+for sha in $(git log --format="%h" -5); do
+  patchpatrol review-commit --mode security --model cloud $sha
+done
+
+# Deep security analysis with local model
+patchpatrol review-commit --mode security --model granite-8b-code --threshold 0.2 abc123d
+
+# Multi-repository security audit
+patchpatrol review-commit --mode security --model cloud --repo-path /path/to/repo abc123d
 ```
 
 **Use Cases:**
@@ -246,16 +437,27 @@ patchpatrol review-commit --model granite-3b-code --repo-path /path/to/repo abc1
 # Code review for pull requests
 patchpatrol review-commit --model quality --threshold 0.85 $COMMIT_SHA
 
+# Security audit for compliance
+patchpatrol review-commit --mode security --model cloud --threshold 0.2 $COMMIT_SHA
+
 # Learning from historical commits
 patchpatrol review-commit --model cloud --threshold 0.6 HEAD~5
+
+# Security timeline analysis
+patchpatrol review-commit --mode security --model quality --threshold 0.3 HEAD~5
 
 # Audit commit quality over time
 for sha in $(git log --format="%h" -10); do
   patchpatrol review-commit --model ci $sha
 done
 
-# Review a merge commit
-patchpatrol review-commit --model granite-8b-code --threshold 0.9 HEAD
+# Security audit over time
+for sha in $(git log --format="%h" -10); do
+  patchpatrol review-commit --mode security --model quality $sha
+done
+
+# Review a merge commit for security
+patchpatrol review-commit --mode security --model granite-8b-code --threshold 0.3 HEAD
 ```
 
 **Note:** Historical commit reviews always run in "soft mode" (non-blocking) since they're used for analysis rather than enforcement.
@@ -269,10 +471,18 @@ repos:
   - repo: https://github.com/patchpatrol/patchpatrol
     rev: v0.1.0
     hooks:
-      # Standard hooks
+      # Code quality hooks (default mode)
       - id: patchpatrol-review-changes      # Review staged changes (hard mode)
       - id: patchpatrol-review-message      # Review commit message (hard mode)
       - id: patchpatrol-review-complete     # Complete review (hard mode)
+
+      # Security review hooks
+      - id: patchpatrol-review-changes
+        name: security-review-changes
+        args: [--mode=security, --threshold=0.3, --hard]
+      - id: patchpatrol-review-message
+        name: security-review-message
+        args: [--mode=security, --threshold=0.2, --hard]
 
       # Soft mode hooks (warnings only)
       - id: patchpatrol-changes-soft        # Review changes (soft mode)
@@ -288,6 +498,7 @@ repos:
   - repo: https://github.com/patchpatrol/patchpatrol
     rev: v0.1.0
     hooks:
+      # Code quality review
       - id: patchpatrol-review-changes
         args:
           - --backend=onnx
@@ -299,6 +510,40 @@ repos:
         args:
           - --backend=onnx
           - --model=/shared/models/commit-reviewer-onnx
+          - --threshold=0.8
+          - --soft
+
+      # Security review (required for production)
+      - id: patchpatrol-review-changes
+        name: security-gate
+        args:
+          - --mode=security
+          - --backend=onnx
+          - --model=/shared/models/security-model/
+          - --threshold=0.2
+          - --device=cuda
+          - --hard
+```
+
+#### Security-First Configuration
+```yaml
+# For security-sensitive projects
+repos:
+  - repo: https://github.com/patchpatrol/patchpatrol
+    rev: v0.1.0
+    hooks:
+      # Strict security analysis
+      - id: patchpatrol-review-complete
+        args:
+          - --mode=security
+          - --model=cloud
+          - --threshold=0.15  # Very strict
+          - --hard
+
+      # Quality check as secondary
+      - id: patchpatrol-review-changes
+        args:
+          - --model=quality
           - --threshold=0.8
           - --soft
 ```
@@ -542,16 +787,16 @@ PatchPatrol is perfect for CI/CD pipelines with zero-setup automatic model downl
 ### GitHub Actions
 
 ```yaml
-name: AI Code Review
+name: AI Code Review & Security Analysis
 on: [pull_request]
 
 jobs:
-  review:
+  code-quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Fetch full history for commit review
+          fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
@@ -559,26 +804,60 @@ jobs:
       - name: Install PatchPatrol
         run: pip install patchpatrol[llama]
 
-      - name: Review Changes
+      - name: Code Quality Review
         run: patchpatrol review-changes --model ci --hard
 
-      - name: Review Recent Commits
+  security-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install PatchPatrol
+        run: pip install patchpatrol[gemini]
+
+      - name: Security Analysis
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          # Review the last 3 commits for quality assessment
-          for sha in $(git log --format="%h" -3); do
-            echo "Reviewing commit $sha..."
-            patchpatrol review-commit --model ci $sha
+          patchpatrol review-complete --mode security --model cloud --threshold 0.2 --hard
+
+      - name: Historical Security Audit
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          # Security audit of recent commits
+          for sha in $(git log --format="%h" -5); do
+            echo "Security audit for commit $sha..."
+            patchpatrol review-commit --mode security --model cloud $sha
           done
 
-      - name: Review Specific Commit (if specified)
-        if: github.event.inputs.commit_sha
-        run: patchpatrol review-commit --model quality --threshold 0.8 ${{ github.event.inputs.commit_sha }}
+  compliance-check:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install PatchPatrol
+        run: pip install patchpatrol[llama]
+
+      - name: Compliance Security Scan
+        run: |
+          # Very strict security check for main branch
+          patchpatrol review-changes --mode security --model granite-8b-code --threshold 0.1 --hard
 ```
 
 ### GitLab CI
 
 ```yaml
-ai_review:
+code_quality_review:
   stage: test
   image: python:3.11
   script:
@@ -587,22 +866,44 @@ ai_review:
   only:
     - merge_requests
 
-commit_audit:
+security_review:
+  stage: test
+  image: python:3.11
+  script:
+    - pip install patchpatrol[gemini]
+    - patchpatrol review-complete --mode security --model cloud --threshold 0.3 --hard
+  variables:
+    GEMINI_API_KEY: $GEMINI_API_KEY
+  only:
+    - merge_requests
+
+security_audit:
   stage: test
   image: python:3.11
   script:
     - pip install patchpatrol[llama]
-    # Review commits in the merge request
+    # Security audit of commits in merge request
     - |
       if [ -n "$CI_MERGE_REQUEST_TARGET_BRANCH_SHA" ]; then
         for sha in $(git log --format="%h" ${CI_MERGE_REQUEST_TARGET_BRANCH_SHA}..HEAD); do
-          echo "Auditing commit $sha..."
-          patchpatrol review-commit --model ci $sha
+          echo "Security audit for commit $sha..."
+          patchpatrol review-commit --mode security --model granite-3b-code $sha
         done
       fi
   only:
     - merge_requests
-  allow_failure: true  # Don't fail pipeline on audit issues
+  allow_failure: true  # Don't fail pipeline on historical audit
+
+production_security_gate:
+  stage: deploy
+  image: python:3.11
+  script:
+    - pip install patchpatrol[llama]
+    # Strict security check before production deployment
+    - patchpatrol review-changes --mode security --model granite-8b-code --threshold 0.1 --hard
+  only:
+    - main
+  when: manual
 ```
 
 ### Jenkins

@@ -698,3 +698,515 @@ class TestParameterValidation:
             ],
         )
         assert result.exit_code == 2
+
+
+class TestSecurityModeCommands:
+    """Test security mode functionality in CLI commands."""
+
+    @patch("patchpatrol.cli._review_changes_impl")
+    def test_review_changes_security_mode(self, mock_impl):
+        """Test review-changes with security mode."""
+        mock_impl.return_value = 0
+
+        runner = CliRunner()
+        runner.invoke(
+            main,
+            [
+                "review-changes",
+                "--mode",
+                "security",
+                "--model",
+                "test-model",
+                "--threshold",
+                "0.8",
+            ],
+        )
+
+        mock_impl.assert_called_once()
+        args, kwargs = mock_impl.call_args
+        assert kwargs["mode"] == "security"
+        assert kwargs["threshold"] == 0.8
+        assert kwargs["model"] == "test-model"
+
+    @patch("patchpatrol.cli._review_changes_impl")
+    def test_review_changes_code_quality_mode_default(self, mock_impl):
+        """Test review-changes defaults to code-quality mode."""
+        mock_impl.return_value = 0
+
+        runner = CliRunner()
+        runner.invoke(
+            main,
+            [
+                "review-changes",
+                "--model",
+                "test-model",
+            ],
+        )
+
+        mock_impl.assert_called_once()
+        args, kwargs = mock_impl.call_args
+        assert kwargs["mode"] == "code-quality"
+
+    @patch("patchpatrol.cli._review_message_impl")
+    def test_review_message_security_mode(self, mock_impl):
+        """Test review-message with security mode."""
+        mock_impl.return_value = 0
+
+        runner = CliRunner()
+        runner.invoke(
+            main,
+            [
+                "review-message",
+                "--mode",
+                "security",
+                "--model",
+                "test-model",
+                "commit.msg",
+            ],
+        )
+
+        mock_impl.assert_called_once()
+        args, kwargs = mock_impl.call_args
+        assert kwargs["mode"] == "security"
+        assert kwargs["model"] == "test-model"
+        assert kwargs["commit_msg_file"] == "commit.msg"
+
+    @patch("patchpatrol.cli._review_complete_impl")
+    def test_review_complete_security_mode(self, mock_impl):
+        """Test review-complete with security mode."""
+        mock_impl.return_value = 0
+
+        runner = CliRunner()
+        runner.invoke(
+            main,
+            [
+                "review-complete",
+                "--mode",
+                "security",
+                "--model",
+                "test-model",
+            ],
+        )
+
+        mock_impl.assert_called_once()
+        args, kwargs = mock_impl.call_args
+        assert kwargs["mode"] == "security"
+        assert kwargs["model"] == "test-model"
+
+    @patch("patchpatrol.cli._review_commit_impl")
+    def test_review_commit_security_mode(self, mock_impl):
+        """Test review-commit with security mode."""
+        mock_impl.return_value = 0
+
+        runner = CliRunner()
+        runner.invoke(
+            main,
+            [
+                "review-commit",
+                "--mode",
+                "security",
+                "--model",
+                "test-model",
+                "abc123",
+            ],
+        )
+
+        mock_impl.assert_called_once()
+        args, kwargs = mock_impl.call_args
+        assert kwargs["mode"] == "security"
+        assert kwargs["model"] == "test-model"
+        assert kwargs["commit_sha"] == "abc123"
+
+    def test_invalid_mode_choice(self):
+        """Test invalid mode parameter."""
+        runner = CliRunner()
+
+        result = runner.invoke(
+            main,
+            [
+                "review-changes",
+                "--mode",
+                "invalid-mode",
+                "--model",
+                "test-model",
+            ],
+        )
+
+        assert result.exit_code == 2
+        assert "Invalid value" in result.output or "invalid-mode" in result.output
+
+    def test_mode_parameter_help(self):
+        """Test that mode parameter appears in help."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["review-changes", "--help"])
+
+        assert result.exit_code == 0
+        assert "--mode" in result.output
+        assert "code-quality" in result.output
+        assert "security" in result.output
+
+
+class TestSecurityReviewImplementation:
+    """Test security review implementation logic."""
+
+    @patch("patchpatrol.cli.GitRepository")
+    @patch("patchpatrol.cli._run_ai_review")
+    @patch("patchpatrol.cli._handle_review_result")
+    def test_review_changes_uses_security_prompts(
+        self, mock_handle_result, mock_ai_review, mock_git_repo_class
+    ):
+        """Test that security mode uses security prompts."""
+        from patchpatrol.cli import _review_changes_impl
+        from patchpatrol.prompts import SYSTEM_SECURITY_REVIEWER
+
+        # Mock git repository
+        mock_repo = Mock()
+        mock_repo.has_staged_changes.return_value = True
+        mock_repo.get_staged_diff.return_value = "mock diff"
+        mock_repo.get_changed_files.return_value = ["test.py"]
+        mock_repo.get_lines_of_change.return_value = (10, 5)
+        mock_git_repo_class.return_value = mock_repo
+
+        # Mock AI review
+        from patchpatrol.utils.parsing import ReviewResult
+
+        mock_result = ReviewResult(
+            score=0.8,
+            verdict="security_risk",
+            comments=["Security issues found"],
+            raw_response="{}",
+        )
+        mock_ai_review.return_value = mock_result
+        mock_handle_result.return_value = 0
+
+        # Call implementation with security mode
+        exit_code = _review_changes_impl(
+            mode="security",
+            backend="onnx",
+            model="test-model",
+            device="cpu",
+            threshold=0.7,
+            temperature=0.2,
+            max_new_tokens=512,
+            top_p=0.9,
+            soft=True,
+            repo_path=None,
+        )
+
+        # Verify AI review was called with security prompts
+        mock_ai_review.assert_called_once()
+        args, kwargs = mock_ai_review.call_args
+        assert kwargs["system_prompt"] == SYSTEM_SECURITY_REVIEWER
+        assert "diff=mock diff" in kwargs["user_prompt"]
+        assert "files=test.py" in kwargs["user_prompt"]
+
+        assert exit_code == 0
+
+    @patch("patchpatrol.cli.GitRepository")
+    @patch("patchpatrol.cli._run_ai_review")
+    @patch("patchpatrol.cli._handle_review_result")
+    def test_review_changes_uses_code_quality_prompts(
+        self, mock_handle_result, mock_ai_review, mock_git_repo_class
+    ):
+        """Test that code-quality mode uses standard prompts."""
+        from patchpatrol.cli import _review_changes_impl
+        from patchpatrol.prompts import SYSTEM_REVIEWER
+
+        # Mock git repository
+        mock_repo = Mock()
+        mock_repo.has_staged_changes.return_value = True
+        mock_repo.get_staged_diff.return_value = "mock diff"
+        mock_repo.get_changed_files.return_value = ["test.py"]
+        mock_repo.get_lines_of_change.return_value = (10, 5)
+        mock_git_repo_class.return_value = mock_repo
+
+        # Mock AI review
+        from patchpatrol.utils.parsing import ReviewResult
+
+        mock_result = ReviewResult(
+            score=0.85,
+            verdict="approve",
+            comments=["Good code quality"],
+            raw_response="{}",
+        )
+        mock_ai_review.return_value = mock_result
+        mock_handle_result.return_value = 0
+
+        # Call implementation with code-quality mode
+        exit_code = _review_changes_impl(
+            mode="code-quality",
+            backend="onnx",
+            model="test-model",
+            device="cpu",
+            threshold=0.7,
+            temperature=0.2,
+            max_new_tokens=512,
+            top_p=0.9,
+            soft=True,
+            repo_path=None,
+        )
+
+        # Verify AI review was called with standard prompts
+        mock_ai_review.assert_called_once()
+        args, kwargs = mock_ai_review.call_args
+        assert kwargs["system_prompt"] == SYSTEM_REVIEWER
+        assert "diff=mock diff" in kwargs["user_prompt"]
+
+        assert exit_code == 0
+
+    @patch("patchpatrol.cli.GitRepository")
+    @patch("patchpatrol.cli._run_ai_review")
+    @patch("patchpatrol.cli._handle_review_result")
+    def test_review_message_security_prompts(
+        self, mock_handle_result, mock_ai_review, mock_git_repo_class
+    ):
+        """Test message review uses security prompts in security mode."""
+        from patchpatrol.cli import _review_message_impl
+        from patchpatrol.prompts import SYSTEM_SECURITY_REVIEWER
+
+        # Mock git repository
+        mock_repo = Mock()
+        mock_repo.get_commit_message.return_value = "feat: add security feature"
+        mock_git_repo_class.return_value = mock_repo
+
+        # Mock AI review
+        from patchpatrol.utils.parsing import ReviewResult
+
+        mock_result = ReviewResult(
+            score=0.3,
+            verdict="security_risk",
+            comments=["Commit message reveals internal system details"],
+            raw_response="{}",
+        )
+        mock_ai_review.return_value = mock_result
+        mock_handle_result.return_value = 0
+
+        # Call implementation with security mode
+        exit_code = _review_message_impl(
+            mode="security",
+            backend="onnx",
+            model="test-model",
+            device="cpu",
+            threshold=0.7,
+            temperature=0.2,
+            max_new_tokens=512,
+            top_p=0.9,
+            soft=True,
+            repo_path=None,
+            commit_msg_file=None,
+        )
+
+        # Verify AI review was called with security prompts
+        mock_ai_review.assert_called_once()
+        args, kwargs = mock_ai_review.call_args
+        assert kwargs["system_prompt"] == SYSTEM_SECURITY_REVIEWER
+        assert "message=feat: add security feature" in kwargs["user_prompt"]
+
+        assert exit_code == 0
+
+    @patch("patchpatrol.cli.GitRepository")
+    @patch("patchpatrol.cli._run_ai_review")
+    @patch("patchpatrol.cli._handle_review_result")
+    def test_review_complete_security_prompts(
+        self, mock_handle_result, mock_ai_review, mock_git_repo_class
+    ):
+        """Test complete review uses security prompts in security mode."""
+        from patchpatrol.cli import _review_complete_impl
+        from patchpatrol.prompts import SYSTEM_SECURITY_REVIEWER
+
+        # Mock git repository
+        mock_repo = Mock()
+        mock_repo.get_commit_message.return_value = "fix: patch vulnerability"
+        mock_repo.has_staged_changes.return_value = True
+        mock_repo.get_staged_diff.return_value = "security fix diff"
+        mock_repo.get_changed_files.return_value = ["auth.py"]
+        mock_repo.get_lines_of_change.return_value = (5, 2)
+        mock_git_repo_class.return_value = mock_repo
+
+        # Mock AI review
+        from patchpatrol.utils.parsing import ReviewResult, SecurityIssue
+
+        mock_result = ReviewResult(
+            score=0.2,  # Low risk score (good for security)
+            verdict="approve",
+            comments=["Security vulnerability properly fixed"],
+            raw_response="{}",
+            security_issues=[
+                SecurityIssue(
+                    category="authentication",
+                    severity="LOW",
+                    description="Consider additional input validation",
+                    remediation="Add input sanitization",
+                )
+            ],
+        )
+        mock_ai_review.return_value = mock_result
+        mock_handle_result.return_value = 0
+
+        # Call implementation with security mode
+        exit_code = _review_complete_impl(
+            mode="security",
+            backend="onnx",
+            model="test-model",
+            device="cpu",
+            threshold=0.7,
+            temperature=0.2,
+            max_new_tokens=512,
+            top_p=0.9,
+            soft=True,
+            repo_path=None,
+            commit_msg_file=None,
+        )
+
+        # Verify AI review was called with security prompts
+        mock_ai_review.assert_called_once()
+        args, kwargs = mock_ai_review.call_args
+        assert kwargs["system_prompt"] == SYSTEM_SECURITY_REVIEWER
+        assert "message=fix: patch vulnerability" in kwargs["user_prompt"]
+        assert "diff=security fix diff" in kwargs["user_prompt"]
+
+        assert exit_code == 0
+
+    @patch("patchpatrol.cli.GitRepository")
+    @patch("patchpatrol.cli._run_ai_review")
+    @patch("patchpatrol.cli._handle_review_result")
+    def test_review_commit_security_prompts(
+        self, mock_handle_result, mock_ai_review, mock_git_repo_class
+    ):
+        """Test commit review uses security prompts in security mode."""
+        from patchpatrol.cli import _review_commit_impl
+        from patchpatrol.prompts import SYSTEM_SECURITY_REVIEWER
+
+        # Mock git repository
+        mock_repo = Mock()
+        mock_repo.get_commit_info.return_value = {
+            "short_sha": "abc1234",
+            "author_name": "John Doe",
+            "author_email": "john@example.com",
+            "author_date": "2023-01-01",
+            "subject": "feat: add encryption",
+        }
+        mock_repo.get_commit_message_from_sha.return_value = "feat: add encryption to data storage"
+        mock_repo.get_commit_diff.return_value = "encryption implementation diff"
+        mock_repo.get_commit_files.return_value = ["crypto.py"]
+        mock_repo.get_commit_lines_of_change.return_value = (50, 10)
+        mock_git_repo_class.return_value = mock_repo
+
+        # Mock AI review
+        from patchpatrol.utils.parsing import ReviewResult, SecurityIssue
+
+        mock_result = ReviewResult(
+            score=0.4,
+            verdict="revise",
+            comments=["Encryption implementation needs review"],
+            raw_response="{}",
+            security_issues=[
+                SecurityIssue(
+                    category="cryptography",
+                    severity="MEDIUM",
+                    description="Consider using established crypto libraries",
+                    remediation="Replace custom crypto with proven libraries",
+                    cwe="CWE-327",
+                )
+            ],
+        )
+        mock_ai_review.return_value = mock_result
+        mock_handle_result.return_value = 0
+
+        # Call implementation with security mode
+        exit_code = _review_commit_impl(
+            mode="security",
+            backend="onnx",
+            model="test-model",
+            device="cpu",
+            threshold=0.7,
+            temperature=0.2,
+            max_new_tokens=512,
+            top_p=0.9,
+            repo_path=None,
+            commit_sha="abc1234",
+        )
+
+        # Verify AI review was called with security prompts
+        mock_ai_review.assert_called_once()
+        args, kwargs = mock_ai_review.call_args
+        assert kwargs["system_prompt"] == SYSTEM_SECURITY_REVIEWER
+        assert "commit_sha=abc1234" in kwargs["user_prompt"]
+        assert "message=feat: add encryption to data storage" in kwargs["user_prompt"]
+        assert "diff=encryption implementation diff" in kwargs["user_prompt"]
+
+        assert exit_code == 0
+
+
+class TestSecurityReviewResult:
+    """Test security review result handling."""
+
+    def test_handle_security_risk_result(self):
+        """Test handling security_risk verdict."""
+        from patchpatrol.utils.parsing import ReviewResult, SecurityIssue
+
+        result = ReviewResult(
+            score=0.9,  # High risk score
+            verdict="security_risk",
+            comments=["Critical security vulnerabilities found"],
+            raw_response="{}",
+            security_issues=[
+                SecurityIssue(
+                    category="injection",
+                    severity="CRITICAL",
+                    description="SQL injection vulnerability",
+                    remediation="Use parameterized queries",
+                    cwe="CWE-89",
+                )
+            ],
+            severity="CRITICAL",
+        )
+
+        with patch("patchpatrol.cli.console"):
+            exit_code = _handle_review_result(
+                result, threshold=0.7, soft=False, review_type="security test"
+            )
+
+        # Security risk with high score should fail even if verdict is not "revise"
+        assert exit_code == 1
+
+    def test_handle_security_approval_low_risk(self):
+        """Test handling approved security review with low risk."""
+        from patchpatrol.utils.parsing import ReviewResult
+
+        result = ReviewResult(
+            score=0.1,  # Low risk score (good for security)
+            verdict="approve",
+            comments=["No security issues found"],
+            raw_response="{}",
+            severity="LOW",
+        )
+
+        with patch("patchpatrol.cli.console"):
+            exit_code = _handle_review_result(
+                result, threshold=0.7, soft=False, review_type="security test"
+            )
+
+        assert exit_code == 0
+
+    def test_security_review_is_approved_logic(self):
+        """Test security review approval logic."""
+        from patchpatrol.utils.parsing import ReviewResult
+
+        # Security mode: low score + approve verdict = approved
+        result = ReviewResult(
+            score=0.2,  # Low risk
+            verdict="approve",
+            comments=["Secure"],
+            raw_response="{}",
+        )
+        assert result.is_approved(threshold=0.7) is True
+
+        # Security mode: high score = not approved regardless of verdict
+        result = ReviewResult(
+            score=0.8,  # High risk
+            verdict="approve",
+            comments=["Has vulnerabilities"],
+            raw_response="{}",
+        )
+        assert result.is_approved(threshold=0.7) is False

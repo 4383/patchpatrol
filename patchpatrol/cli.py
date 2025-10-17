@@ -25,10 +25,15 @@ from .backends.base import BackendError, get_backend  # noqa: E402
 from .models import DEFAULT_MODELS, MODEL_REGISTRY, get_model_manager, get_model_path  # noqa: E402
 from .prompts import (  # noqa: E402
     SYSTEM_REVIEWER,
+    SYSTEM_SECURITY_REVIEWER,
     USER_TEMPLATE_CHANGES,
     USER_TEMPLATE_COMMIT,
     USER_TEMPLATE_COMPLETE,
     USER_TEMPLATE_MESSAGE,
+    USER_TEMPLATE_SECURITY_CHANGES,
+    USER_TEMPLATE_SECURITY_COMMIT,
+    USER_TEMPLATE_SECURITY_COMPLETE,
+    USER_TEMPLATE_SECURITY_MESSAGE,
     truncate_diff,
     truncate_message,
 )
@@ -279,6 +284,12 @@ def test_gemini_cmd(api_key: str | None):
 
 @main.command("review-changes")
 @click.option(
+    "--mode",
+    type=click.Choice(["code-quality", "security"], case_sensitive=False),
+    default="code-quality",
+    help="Review mode: code-quality (default) or security-focused analysis",
+)
+@click.option(
     "--backend",
     "-b",
     type=click.Choice(["onnx", "llama", "gemini"], case_sensitive=False),
@@ -328,6 +339,7 @@ def test_gemini_cmd(api_key: str | None):
     help="Path to Git repository (default: current directory)",
 )
 def review_changes(
+    mode: str,
     backend: str | None,
     model: str,
     device: str,
@@ -345,6 +357,7 @@ def review_changes(
     """
     try:
         exit_code = _review_changes_impl(
+            mode=mode,
             backend=backend,
             model=model,
             device=device,
@@ -365,6 +378,12 @@ def review_changes(
 
 
 @main.command("review-message")
+@click.option(
+    "--mode",
+    type=click.Choice(["code-quality", "security"], case_sensitive=False),
+    default="code-quality",
+    help="Review mode: code-quality (default) or security-focused analysis",
+)
 @click.option(
     "--backend",
     "-b",
@@ -416,6 +435,7 @@ def review_changes(
 )
 @click.argument("commit_msg_file", required=False)
 def review_message(
+    mode: str,
     backend: str | None,
     model: str,
     device: str,
@@ -436,6 +456,7 @@ def review_message(
     """
     try:
         exit_code = _review_message_impl(
+            mode=mode,
             backend=backend,
             model=model,
             device=device,
@@ -457,6 +478,12 @@ def review_message(
 
 
 @main.command("review-complete")
+@click.option(
+    "--mode",
+    type=click.Choice(["code-quality", "security"], case_sensitive=False),
+    default="code-quality",
+    help="Review mode: code-quality (default) or security-focused analysis",
+)
 @click.option(
     "--backend",
     "-b",
@@ -508,6 +535,7 @@ def review_message(
 )
 @click.argument("commit_msg_file", required=False)
 def review_complete(
+    mode: str,
     backend: str | None,
     model: str,
     device: str,
@@ -526,6 +554,7 @@ def review_complete(
     """
     try:
         exit_code = _review_complete_impl(
+            mode=mode,
             backend=backend,
             model=model,
             device=device,
@@ -547,6 +576,12 @@ def review_complete(
 
 
 @main.command("review-commit")
+@click.option(
+    "--mode",
+    type=click.Choice(["code-quality", "security"], case_sensitive=False),
+    default="code-quality",
+    help="Review mode: code-quality (default) or security-focused analysis",
+)
 @click.option(
     "--backend",
     "-b",
@@ -595,6 +630,7 @@ def review_complete(
 )
 @click.argument("commit_sha", required=True)
 def review_commit(
+    mode: str,
     backend: str | None,
     model: str,
     device: str,
@@ -614,6 +650,7 @@ def review_commit(
     """
     try:
         exit_code = _review_commit_impl(
+            mode=mode,
             backend=backend,
             model=model,
             device=device,
@@ -634,6 +671,7 @@ def review_commit(
 
 
 def _review_changes_impl(
+    mode: str,
     backend: str | None,
     model: str,
     device: str,
@@ -670,13 +708,23 @@ def _review_changes_impl(
     # Truncate diff if needed
     diff = truncate_diff(diff)
 
-    # Prepare prompts
-    user_prompt = USER_TEMPLATE_CHANGES.format(
-        diff=diff,
-        files=", ".join(files) if files else "unknown",
-        loc=lines_added + lines_removed,
-        threshold=threshold,
-    )
+    # Select prompts based on mode
+    if mode == "security":
+        system_prompt = SYSTEM_SECURITY_REVIEWER
+        user_prompt = USER_TEMPLATE_SECURITY_CHANGES.format(
+            diff=diff,
+            files=", ".join(files) if files else "unknown",
+            loc=lines_added + lines_removed,
+            threshold=threshold,
+        )
+    else:  # code-quality mode
+        system_prompt = SYSTEM_REVIEWER
+        user_prompt = USER_TEMPLATE_CHANGES.format(
+            diff=diff,
+            files=", ".join(files) if files else "unknown",
+            loc=lines_added + lines_removed,
+            threshold=threshold,
+        )
 
     # Run AI review
     result = _run_ai_review(
@@ -686,7 +734,7 @@ def _review_changes_impl(
         temperature=temperature,
         max_new_tokens=max_new_tokens,
         top_p=top_p,
-        system_prompt=SYSTEM_REVIEWER,
+        system_prompt=system_prompt,
         user_prompt=user_prompt,
     )
 
@@ -695,6 +743,7 @@ def _review_changes_impl(
 
 
 def _review_message_impl(
+    mode: str,
     backend: str | None,
     model: str,
     device: str,
@@ -728,11 +777,19 @@ def _review_message_impl(
     # Truncate message if needed
     message = truncate_message(message)
 
-    # Prepare prompts
-    user_prompt = USER_TEMPLATE_MESSAGE.format(
-        message=message,
-        threshold=threshold,
-    )
+    # Select prompts based on mode
+    if mode == "security":
+        system_prompt = SYSTEM_SECURITY_REVIEWER
+        user_prompt = USER_TEMPLATE_SECURITY_MESSAGE.format(
+            message=message,
+            threshold=threshold,
+        )
+    else:  # code-quality mode
+        system_prompt = SYSTEM_REVIEWER
+        user_prompt = USER_TEMPLATE_MESSAGE.format(
+            message=message,
+            threshold=threshold,
+        )
 
     # Run AI review
     result = _run_ai_review(
@@ -742,7 +799,7 @@ def _review_message_impl(
         temperature=temperature,
         max_new_tokens=max_new_tokens,
         top_p=top_p,
-        system_prompt=SYSTEM_REVIEWER,
+        system_prompt=system_prompt,
         user_prompt=user_prompt,
     )
 
@@ -751,6 +808,7 @@ def _review_message_impl(
 
 
 def _review_complete_impl(
+    mode: str,
     backend: str | None,
     model: str,
     device: str,
@@ -792,14 +850,25 @@ def _review_complete_impl(
     diff = truncate_diff(diff)
     message = truncate_message(message)
 
-    # Prepare prompts
-    user_prompt = USER_TEMPLATE_COMPLETE.format(
-        message=message,
-        diff=diff,
-        files=", ".join(files) if files else "unknown",
-        loc=lines_added + lines_removed,
-        threshold=threshold,
-    )
+    # Select prompts based on mode
+    if mode == "security":
+        system_prompt = SYSTEM_SECURITY_REVIEWER
+        user_prompt = USER_TEMPLATE_SECURITY_COMPLETE.format(
+            message=message,
+            diff=diff,
+            files=", ".join(files) if files else "unknown",
+            loc=lines_added + lines_removed,
+            threshold=threshold,
+        )
+    else:  # code-quality mode
+        system_prompt = SYSTEM_REVIEWER
+        user_prompt = USER_TEMPLATE_COMPLETE.format(
+            message=message,
+            diff=diff,
+            files=", ".join(files) if files else "unknown",
+            loc=lines_added + lines_removed,
+            threshold=threshold,
+        )
 
     # Run AI review
     result = _run_ai_review(
@@ -809,7 +878,7 @@ def _review_complete_impl(
         temperature=temperature,
         max_new_tokens=max_new_tokens,
         top_p=top_p,
-        system_prompt=SYSTEM_REVIEWER,
+        system_prompt=system_prompt,
         user_prompt=user_prompt,
     )
 
@@ -818,6 +887,7 @@ def _review_complete_impl(
 
 
 def _review_commit_impl(
+    mode: str,
     backend: str | None,
     model: str,
     device: str,
@@ -857,19 +927,35 @@ def _review_commit_impl(
         diff = truncate_diff(diff)
         message = truncate_message(message)
 
-        # Prepare prompts using the commit-specific template
-        user_prompt = USER_TEMPLATE_COMMIT.format(
-            commit_sha=commit_info["short_sha"],
-            author_name=commit_info["author_name"],
-            author_email=commit_info["author_email"],
-            author_date=commit_info["author_date"],
-            subject=commit_info["subject"],
-            message=message,
-            diff=diff,
-            files=", ".join(files) if files else "none",
-            loc=lines_added + lines_removed,
-            threshold=threshold,
-        )
+        # Select prompts based on mode
+        if mode == "security":
+            system_prompt = SYSTEM_SECURITY_REVIEWER
+            user_prompt = USER_TEMPLATE_SECURITY_COMMIT.format(
+                commit_sha=commit_info["short_sha"],
+                author_name=commit_info["author_name"],
+                author_email=commit_info["author_email"],
+                author_date=commit_info["author_date"],
+                subject=commit_info["subject"],
+                message=message,
+                diff=diff,
+                files=", ".join(files) if files else "none",
+                loc=lines_added + lines_removed,
+                threshold=threshold,
+            )
+        else:  # code-quality mode
+            system_prompt = SYSTEM_REVIEWER
+            user_prompt = USER_TEMPLATE_COMMIT.format(
+                commit_sha=commit_info["short_sha"],
+                author_name=commit_info["author_name"],
+                author_email=commit_info["author_email"],
+                author_date=commit_info["author_date"],
+                subject=commit_info["subject"],
+                message=message,
+                diff=diff,
+                files=", ".join(files) if files else "none",
+                loc=lines_added + lines_removed,
+                threshold=threshold,
+            )
 
         # Run AI review
         result = _run_ai_review(
@@ -879,7 +965,7 @@ def _review_commit_impl(
             temperature=temperature,
             max_new_tokens=max_new_tokens,
             top_p=top_p,
-            system_prompt=SYSTEM_REVIEWER,
+            system_prompt=system_prompt,
             user_prompt=user_prompt,
         )
 

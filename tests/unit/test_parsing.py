@@ -2,6 +2,7 @@
 
 from patchpatrol.utils.parsing import (
     ReviewResult,
+    SecurityIssue,
     extract_json_from_text,
     format_review_output,
     normalize_review_json,
@@ -221,7 +222,7 @@ class TestValidateReviewJson:
         is_valid, errors = validate_review_json(data)
 
         assert is_valid is False
-        assert "Verdict must be 'approve' or 'revise'" in errors[0]
+        assert "Verdict must be 'approve', 'revise', or 'security_risk'" in errors[0]
 
     def test_validate_invalid_comments_type(self):
         """Test validation with invalid comments type."""
@@ -597,3 +598,529 @@ class TestParseAndValidate:
         # Has parsing errors but is still valid after normalization
         assert result.parsing_errors is not None
         assert is_valid is True  # Should be valid after normalization
+
+
+class TestSecurityIssue:
+    """Test SecurityIssue dataclass."""
+
+    def test_security_issue_creation_minimal(self):
+        """Test creating a SecurityIssue with minimal fields."""
+        issue = SecurityIssue(
+            category="secrets",
+            severity="HIGH",
+            description="Hardcoded API key found",
+            remediation="Move API key to environment variable",
+        )
+
+        assert issue.category == "secrets"
+        assert issue.severity == "HIGH"
+        assert issue.description == "Hardcoded API key found"
+        assert issue.remediation == "Move API key to environment variable"
+        assert issue.cwe is None
+        assert issue.file is None
+        assert issue.line is None
+
+    def test_security_issue_creation_full(self):
+        """Test creating a SecurityIssue with all fields."""
+        issue = SecurityIssue(
+            category="injection",
+            severity="CRITICAL",
+            description="SQL injection vulnerability",
+            remediation="Use parameterized queries",
+            cwe="CWE-89",
+            file="database.py",
+            line=42,
+        )
+
+        assert issue.category == "injection"
+        assert issue.severity == "CRITICAL"
+        assert issue.description == "SQL injection vulnerability"
+        assert issue.remediation == "Use parameterized queries"
+        assert issue.cwe == "CWE-89"
+        assert issue.file == "database.py"
+        assert issue.line == 42
+
+
+class TestSecurityReviewValidation:
+    """Test security review JSON validation."""
+
+    def test_validate_security_review_basic(self):
+        """Test validating basic security review structure."""
+        data = {
+            "score": 0.3,  # Security score (0.0 = secure, 1.0 = critical)
+            "verdict": "security_risk",
+            "severity": "HIGH",
+            "comments": ["Multiple security issues found"],
+            "security_issues": [
+                {
+                    "category": "secrets",
+                    "severity": "HIGH",
+                    "description": "API key found in code",
+                    "remediation": "Move to environment variable",
+                    "cwe": "CWE-798",
+                    "file": "config.py",
+                    "line": 15,
+                }
+            ],
+            "owasp_categories": ["A07:2021-Identification and Authentication Failures"],
+            "compliance_impact": ["SOC2", "PCI-DSS"],
+        }
+
+        is_valid, errors = validate_review_json(data)
+
+        assert is_valid is True
+        assert len(errors) == 0
+
+    def test_validate_security_review_missing_security_fields(self):
+        """Test validating security review with missing security issue fields."""
+        data = {
+            "score": 0.8,
+            "verdict": "security_risk",
+            "comments": ["Issues found"],
+            "security_issues": [
+                {
+                    "category": "secrets",
+                    "severity": "HIGH",
+                    # Missing description and remediation
+                }
+            ],
+        }
+
+        is_valid, errors = validate_review_json(data)
+
+        assert is_valid is False
+        assert "Security issue 0 missing required field: description" in errors
+        assert "Security issue 0 missing required field: remediation" in errors
+
+    def test_validate_security_review_invalid_severity(self):
+        """Test validating security review with invalid severity."""
+        data = {
+            "score": 0.8,
+            "verdict": "security_risk",
+            "severity": "ULTRA_HIGH",  # Invalid severity
+            "comments": ["Issues found"],
+        }
+
+        is_valid, errors = validate_review_json(data)
+
+        assert is_valid is False
+        assert "Severity must be CRITICAL, HIGH, MEDIUM, or LOW" in errors[0]
+
+    def test_validate_security_review_invalid_security_issues_type(self):
+        """Test validating security review with invalid security issues type."""
+        data = {
+            "score": 0.8,
+            "verdict": "security_risk",
+            "comments": ["Issues found"],
+            "security_issues": "not a list",  # Should be list
+        }
+
+        is_valid, errors = validate_review_json(data)
+
+        assert is_valid is False
+        assert "Security issues must be a list" in errors[0]
+
+    def test_validate_security_review_invalid_security_issue_type(self):
+        """Test validating security review with invalid security issue type."""
+        data = {
+            "score": 0.8,
+            "verdict": "security_risk",
+            "comments": ["Issues found"],
+            "security_issues": ["not a dict"],  # Should be dict
+        }
+
+        is_valid, errors = validate_review_json(data)
+
+        assert is_valid is False
+        assert "Security issue 0 must be a dict" in errors[0]
+
+    def test_validate_security_verdict(self):
+        """Test validating security_risk verdict."""
+        data = {
+            "score": 0.9,
+            "verdict": "security_risk",
+            "comments": ["Critical vulnerabilities found"],
+        }
+
+        is_valid, errors = validate_review_json(data)
+
+        assert is_valid is True
+        assert len(errors) == 0
+
+
+class TestSecurityReviewNormalization:
+    """Test security review JSON normalization."""
+
+    def test_normalize_security_verdict_variations(self):
+        """Test normalizing security verdict variations."""
+        for verdict in ["security_risk", "security-risk", "vulnerable", "insecure"]:
+            data = {"score": 0.8, "verdict": verdict, "comments": ["Issues"]}
+            normalized = normalize_review_json(data)
+            assert normalized["verdict"] == "security_risk"
+
+    def test_normalize_security_issues(self):
+        """Test normalizing security issues."""
+        data = {
+            "score": 0.8,
+            "verdict": "security_risk",
+            "comments": ["Issues found"],
+            "security_issues": [
+                {
+                    "category": "secrets",
+                    "severity": "high",  # Should be normalized to uppercase
+                    "description": "  API key found  ",  # Should be stripped
+                    "remediation": "Move to env var",
+                    "cwe": "  CWE-798  ",  # Should be stripped
+                    "file": "  config.py  ",  # Should be stripped
+                    "line": 15,
+                },
+                {
+                    "category": "injection",
+                    "severity": "INVALID",  # Should default to MEDIUM
+                    "description": "SQL injection",
+                    "remediation": "Use parameterized queries",
+                },
+            ],
+        }
+
+        normalized = normalize_review_json(data)
+
+        assert len(normalized["security_issues"]) == 2
+
+        # First issue
+        issue1 = normalized["security_issues"][0]
+        assert issue1["category"] == "secrets"
+        assert issue1["severity"] == "HIGH"  # Normalized to uppercase
+        assert issue1["description"] == "API key found"  # Stripped
+        assert issue1["remediation"] == "Move to env var"
+        assert issue1["cwe"] == "CWE-798"  # Stripped
+        assert issue1["file"] == "config.py"  # Stripped
+        assert issue1["line"] == 15
+
+        # Second issue
+        issue2 = normalized["security_issues"][1]
+        assert issue2["severity"] == "MEDIUM"  # Invalid severity normalized
+
+    def test_normalize_severity(self):
+        """Test normalizing severity field."""
+        data = {
+            "score": 0.8,
+            "verdict": "security_risk",
+            "comments": ["Issues"],
+            "severity": "high",  # Should be normalized to uppercase
+        }
+
+        normalized = normalize_review_json(data)
+
+        assert normalized["severity"] == "HIGH"
+
+    def test_normalize_invalid_severity(self):
+        """Test normalizing invalid severity."""
+        data = {
+            "score": 0.8,
+            "verdict": "security_risk",
+            "comments": ["Issues"],
+            "severity": "EXTREME",  # Invalid severity
+        }
+
+        normalized = normalize_review_json(data)
+
+        assert normalized["severity"] == "MEDIUM"  # Should default to MEDIUM
+
+    def test_normalize_owasp_categories(self):
+        """Test normalizing OWASP categories."""
+        data = {
+            "score": 0.8,
+            "verdict": "security_risk",
+            "comments": ["Issues"],
+            "owasp_categories": [
+                "  A03:2021-Injection  ",  # Should be stripped
+                "",  # Should be filtered out
+                "A07:2021-Identification and Authentication Failures",
+            ],
+        }
+
+        normalized = normalize_review_json(data)
+
+        assert len(normalized["owasp_categories"]) == 2
+        assert "A03:2021-Injection" in normalized["owasp_categories"]
+        assert (
+            "A07:2021-Identification and Authentication Failures" in normalized["owasp_categories"]
+        )
+
+    def test_normalize_compliance_impact(self):
+        """Test normalizing compliance impact."""
+        data = {
+            "score": 0.8,
+            "verdict": "security_risk",
+            "comments": ["Issues"],
+            "compliance_impact": ["  SOC2  ", "", "PCI-DSS", "GDPR"],
+        }
+
+        normalized = normalize_review_json(data)
+
+        assert len(normalized["compliance_impact"]) == 3
+        assert "SOC2" in normalized["compliance_impact"]
+        assert "PCI-DSS" in normalized["compliance_impact"]
+        assert "GDPR" in normalized["compliance_impact"]
+
+    def test_normalize_too_many_security_issues(self):
+        """Test limiting number of security issues."""
+        security_issues = [
+            {
+                "category": f"category_{i}",
+                "severity": "MEDIUM",
+                "description": f"Issue {i}",
+                "remediation": f"Fix {i}",
+            }
+            for i in range(25)  # 25 issues
+        ]
+
+        data = {
+            "score": 0.8,
+            "verdict": "security_risk",
+            "comments": ["Many issues"],
+            "security_issues": security_issues,
+        }
+
+        normalized = normalize_review_json(data)
+
+        assert len(normalized["security_issues"]) == 20  # Should be limited to 20
+
+
+class TestSecurityReviewFormatting:
+    """Test security review output formatting."""
+
+    def test_format_security_review_with_issues(self):
+        """Test formatting security review with security issues."""
+        security_issues = [
+            SecurityIssue(
+                category="secrets",
+                severity="CRITICAL",
+                description="Hardcoded API key found",
+                remediation="Move API key to environment variable",
+                cwe="CWE-798",
+                file="config.py",
+                line=15,
+            ),
+            SecurityIssue(
+                category="injection",
+                severity="HIGH",
+                description="SQL injection vulnerability",
+                remediation="Use parameterized queries",
+                cwe="CWE-89",
+            ),
+        ]
+
+        result = ReviewResult(
+            score=0.8,  # High risk score
+            verdict="security_risk",
+            comments=["Multiple security vulnerabilities found"],
+            raw_response="{}",
+            security_issues=security_issues,
+            severity="CRITICAL",
+            owasp_categories=[
+                "A03:2021-Injection",
+                "A07:2021-Identification and Authentication Failures",
+            ],
+            compliance_impact=["SOC2", "PCI-DSS"],
+        )
+
+        formatted = format_review_output(result, use_colors=True)
+
+        # Check basic formatting
+        assert "🔒" in formatted
+        assert "SECURITY RISK" in formatted
+        assert "0.80" in formatted
+
+        # Check severity formatting
+        assert "Severity:" in formatted
+        assert "CRITICAL" in formatted
+
+        # Check security issues
+        assert "Security Issues:" in formatted
+        assert "Hardcoded API key found" in formatted
+        assert "CWE-798" in formatted
+        assert "config.py:15" in formatted
+        assert "Move API key to environment variable" in formatted
+
+        # Check OWASP categories
+        assert "OWASP Categories:" in formatted
+        assert "A03:2021-Injection" in formatted
+
+        # Check compliance impact
+        assert "Compliance Impact:" in formatted
+        assert "SOC2" in formatted
+        assert "PCI-DSS" in formatted
+
+    def test_format_security_review_without_colors(self):
+        """Test formatting security review without colors."""
+        result = ReviewResult(
+            score=0.7,
+            verdict="security_risk",
+            comments=["Security issues found"],
+            raw_response="{}",
+            severity="HIGH",
+        )
+
+        formatted = format_review_output(result, use_colors=False)
+
+        assert "🔒" in formatted
+        assert "SECURITY RISK" in formatted
+        assert "Severity: HIGH" in formatted
+        assert "[" not in formatted  # No markup
+
+    def test_format_security_review_severity_colors(self):
+        """Test security review severity color coding."""
+        severities_and_colors = [
+            ("CRITICAL", "red"),
+            ("HIGH", "red"),
+            ("MEDIUM", "yellow"),
+            ("LOW", "green"),
+        ]
+
+        for severity, expected_color in severities_and_colors:
+            result = ReviewResult(
+                score=0.5,
+                verdict="security_risk",
+                comments=["Issues found"],
+                raw_response="{}",
+                severity=severity,
+            )
+
+            formatted = format_review_output(result, use_colors=True)
+
+            assert f"[{expected_color}]{severity}[/{expected_color}]" in formatted
+
+
+class TestSecurityReviewParsing:
+    """Test parsing complete security review responses."""
+
+    def test_parse_security_review_response(self):
+        """Test parsing a complete security review response."""
+        response = """{
+            "score": 0.8,
+            "verdict": "security_risk",
+            "severity": "HIGH",
+            "comments": ["Multiple security vulnerabilities detected"],
+            "security_issues": [
+                {
+                    "category": "secrets",
+                    "severity": "CRITICAL",
+                    "cwe": "CWE-798",
+                    "description": "Hardcoded API key found in configuration file",
+                    "file": "config.py",
+                    "line": 15,
+                    "remediation": "Move API key to environment variable or secure key management system"
+                },
+                {
+                    "category": "injection",
+                    "severity": "HIGH",
+                    "cwe": "CWE-89",
+                    "description": "SQL injection vulnerability in user authentication",
+                    "file": "auth.py",
+                    "line": 28,
+                    "remediation": "Use parameterized queries or ORM with proper escaping"
+                }
+            ],
+            "owasp_categories": [
+                "A03:2021-Injection",
+                "A07:2021-Identification and Authentication Failures"
+            ],
+            "compliance_impact": ["SOC2", "PCI-DSS", "GDPR"]
+        }"""
+
+        result = parse_json_response(response)
+
+        # Check basic fields
+        assert result.score == 0.8
+        assert result.verdict == "security_risk"
+        assert result.severity == "HIGH"
+        assert len(result.comments) == 1
+
+        # Check security issues
+        assert result.security_issues is not None
+        assert len(result.security_issues) == 2
+
+        # First security issue
+        issue1 = result.security_issues[0]
+        assert issue1.category == "secrets"
+        assert issue1.severity == "CRITICAL"
+        assert issue1.cwe == "CWE-798"
+        assert issue1.file == "config.py"
+        assert issue1.line == 15
+        assert "API key" in issue1.description
+        assert "environment variable" in issue1.remediation
+
+        # Second security issue
+        issue2 = result.security_issues[1]
+        assert issue2.category == "injection"
+        assert issue2.severity == "HIGH"
+        assert issue2.cwe == "CWE-89"
+
+        # Check OWASP categories
+        assert result.owasp_categories is not None
+        assert len(result.owasp_categories) == 2
+        assert "A03:2021-Injection" in result.owasp_categories
+
+        # Check compliance impact
+        assert result.compliance_impact is not None
+        assert len(result.compliance_impact) == 3
+        assert "SOC2" in result.compliance_impact
+
+    def test_parse_security_review_with_markdown(self):
+        """Test parsing security review response with markdown."""
+        response = """Here's my security analysis:
+
+        ```json
+        {
+            "score": 0.9,
+            "verdict": "security_risk",
+            "severity": "CRITICAL",
+            "comments": ["Critical security vulnerability found"],
+            "security_issues": [
+                {
+                    "category": "authentication",
+                    "severity": "CRITICAL",
+                    "description": "Authentication bypass vulnerability",
+                    "remediation": "Implement proper authentication checks"
+                }
+            ]
+        }
+        ```
+
+        This commit introduces serious security risks."""
+
+        result = parse_json_response(response)
+
+        assert result.score == 0.9
+        assert result.verdict == "security_risk"
+        assert result.severity == "CRITICAL"
+        assert result.security_issues is not None
+        assert len(result.security_issues) == 1
+        assert result.security_issues[0].category == "authentication"
+
+    def test_parse_mixed_security_review(self):
+        """Test parsing review that mixes security and regular fields."""
+        response = """{
+            "score": 0.4,
+            "verdict": "approve",
+            "comments": ["Code quality is good but has minor security considerations"],
+            "security_issues": [
+                {
+                    "category": "hardening",
+                    "severity": "LOW",
+                    "description": "Consider adding input validation",
+                    "remediation": "Add validation for user input fields"
+                }
+            ],
+            "owasp_categories": ["A04:2021-Insecure Design"]
+        }"""
+
+        result = parse_json_response(response)
+
+        assert result.score == 0.4
+        assert result.verdict == "approve"
+        assert result.security_issues is not None
+        assert len(result.security_issues) == 1
+        assert result.security_issues[0].severity == "LOW"
