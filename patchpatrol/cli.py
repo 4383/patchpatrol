@@ -26,6 +26,7 @@ from .models import DEFAULT_MODELS, MODEL_REGISTRY, get_model_manager, get_model
 from .prompts import (  # noqa: E402
     SYSTEM_REVIEWER,
     USER_TEMPLATE_CHANGES,
+    USER_TEMPLATE_COMMIT,
     USER_TEMPLATE_COMPLETE,
     USER_TEMPLATE_MESSAGE,
     truncate_diff,
@@ -545,6 +546,93 @@ def review_complete(
         sys.exit(1)
 
 
+@main.command("review-commit")
+@click.option(
+    "--backend",
+    "-b",
+    type=click.Choice(["onnx", "llama", "gemini"], case_sensitive=False),
+    default=None,
+    help="AI inference backend (auto-detected from model if not specified)",
+)
+@click.option(
+    "--model",
+    "-m",
+    required=True,
+    help="Model name (from registry) or path to model file/directory",
+)
+@click.option(
+    "--device",
+    type=click.Choice(["cpu", "cuda"], case_sensitive=False),
+    default="cpu",
+    help="Compute device for inference",
+)
+@click.option(
+    "--threshold",
+    "-t",
+    type=click.FloatRange(0.0, 1.0),
+    default=0.7,
+    help="Minimum acceptance score (0.0-1.0)",
+)
+@click.option(
+    "--temperature",
+    type=click.FloatRange(0.0, 1.0),
+    default=0.2,
+    help="Sampling temperature for generation",
+)
+@click.option(
+    "--max-new-tokens",
+    type=click.IntRange(min=1),
+    default=512,
+    help="Maximum new tokens to generate",
+)
+@click.option(
+    "--top-p", type=click.FloatRange(0.0, 1.0), default=0.9, help="Top-p sampling parameter"
+)
+@click.option(
+    "--repo-path",
+    type=click.Path(exists=True),
+    help="Path to Git repository (default: current directory)",
+)
+@click.argument("commit_sha", required=True)
+def review_commit(
+    backend: str | None,
+    model: str,
+    device: str,
+    threshold: float,
+    temperature: float,
+    max_new_tokens: int,
+    top_p: float,
+    repo_path: str | None,
+    commit_sha: str,
+):
+    """
+    Review a specific commit by SHA.
+
+    Analyzes a historical commit for code quality, structure, and best practices.
+
+    COMMIT_SHA: The commit SHA to review (full or short SHA)
+    """
+    try:
+        exit_code = _review_commit_impl(
+            backend=backend,
+            model=model,
+            device=device,
+            threshold=threshold,
+            temperature=temperature,
+            max_new_tokens=max_new_tokens,
+            top_p=top_p,
+            repo_path=repo_path,
+            commit_sha=commit_sha,
+        )
+        sys.exit(exit_code)
+
+    except Exception as e:
+        logger.error(f"Review failed: {e}")
+        if logger.level <= logging.DEBUG:
+            console.print_exception()
+        sys.exit(1)
+
+
 def _review_changes_impl(
     backend: str | None,
     model: str,
@@ -727,6 +815,84 @@ def _review_complete_impl(
 
     # Display results and determine exit code
     return _handle_review_result(result, threshold, soft, "complete commit")
+
+
+def _review_commit_impl(
+    backend: str | None,
+    model: str,
+    device: str,
+    threshold: float,
+    temperature: float,
+    max_new_tokens: int,
+    top_p: float,
+    repo_path: str | None,
+    commit_sha: str,
+) -> int:
+    """Implementation for review-commit command."""
+    console.print(f"[bold blue]🔍 PatchPatrol - Reviewing commit {commit_sha}...[/bold blue]")
+
+    # Initialize Git repository
+    repo = GitRepository(repo_path)
+
+    try:
+        # Get commit information
+        commit_info = repo.get_commit_info(commit_sha)
+        message = repo.get_commit_message_from_sha(commit_sha)
+        diff = repo.get_commit_diff(commit_sha)
+        files = repo.get_commit_files(commit_sha)
+        lines_added, lines_removed = repo.get_commit_lines_of_change(commit_sha)
+
+        console.print(
+            f"[dim]Commit: {commit_info['short_sha']} ({commit_info['author_name']})[/dim]"
+        )
+        console.print(f"[dim]Date: {commit_info['author_date']}[/dim]")
+        console.print(f"[dim]Files: {', '.join(files) if files else 'none'}[/dim]")
+        console.print(f"[dim]Changes: +{lines_added} -{lines_removed} lines[/dim]")
+
+        if not diff.strip():
+            console.print("[yellow]⚠ No meaningful changes to review.[/yellow]")
+            return 0
+
+        # Truncate content if needed
+        diff = truncate_diff(diff)
+        message = truncate_message(message)
+
+        # Prepare prompts using the commit-specific template
+        user_prompt = USER_TEMPLATE_COMMIT.format(
+            commit_sha=commit_info["short_sha"],
+            author_name=commit_info["author_name"],
+            author_email=commit_info["author_email"],
+            author_date=commit_info["author_date"],
+            subject=commit_info["subject"],
+            message=message,
+            diff=diff,
+            files=", ".join(files) if files else "none",
+            loc=lines_added + lines_removed,
+            threshold=threshold,
+        )
+
+        # Run AI review
+        result = _run_ai_review(
+            backend=backend,
+            model=model,
+            device=device,
+            temperature=temperature,
+            max_new_tokens=max_new_tokens,
+            top_p=top_p,
+            system_prompt=SYSTEM_REVIEWER,
+            user_prompt=user_prompt,
+        )
+
+        # Display results (always in "soft" mode for historical commits)
+        return _handle_review_result(result, threshold, True, f"commit {commit_info['short_sha']}")
+
+    except GitError as e:
+        console.print(f"[red]✗ Git error: {e}[/red]")
+        return 1
+    except Exception as e:
+        logger.error(f"Failed to review commit {commit_sha}: {e}")
+        console.print(f"[red]✗ Failed to review commit: {e}[/red]")
+        return 1
 
 
 def _run_ai_review(

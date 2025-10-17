@@ -70,6 +70,9 @@ pip install patchpatrol[all]
    # Review commit message with minimal model
    patchpatrol review-message --model minimal
 
+   # Review a specific commit by SHA
+   patchpatrol review-commit --model ci abc123d
+
    # Use cloud-based Gemini API (set GEMINI_API_KEY env var)
    export GEMINI_API_KEY="your-api-key"
    patchpatrol review-changes --model cloud
@@ -200,6 +203,62 @@ patchpatrol review-complete [OPTIONS] [COMMIT_MSG_FILE]
 
 # Reviews both staged changes and commit message together
 ```
+
+##### `review-commit` - Analyze Historical Commits
+
+```bash
+patchpatrol review-commit [OPTIONS] COMMIT_SHA
+
+Options:
+  --backend [onnx|llama|gemini]  Backend (auto-detected if not specified)
+  --model NAME_OR_PATH       Model name or path (required)
+  --device [cpu|cuda|cloud]  Compute device (default: cpu, cloud for API models)
+  --threshold FLOAT          Minimum acceptance score 0.0-1.0 (default: 0.7)
+  --temperature FLOAT        Sampling temperature 0.0-1.0 (default: 0.2)
+  --max-new-tokens INTEGER   Maximum tokens to generate (default: 512)
+  --top-p FLOAT             Top-p sampling 0.0-1.0 (default: 0.9)
+  --repo-path PATH          Git repository path (default: current)
+
+# COMMIT_SHA: The commit SHA to review (full or short SHA)
+```
+
+**Examples:**
+```bash
+# Review a specific commit by full SHA
+patchpatrol review-commit --model granite-3b-code abc123def456789abcdef123456789abcdef0123
+
+# Review using short SHA (7-8 characters)
+patchpatrol review-commit --model ci abc123d
+
+# Review with cloud-based analysis
+export GEMINI_API_KEY="your-api-key"
+patchpatrol review-commit --model cloud def456a
+
+# Review with custom threshold for historical analysis
+patchpatrol review-commit --model quality --threshold 0.8 abc123d
+
+# Review commits from different repository
+patchpatrol review-commit --model granite-3b-code --repo-path /path/to/repo abc123d
+```
+
+**Use Cases:**
+```bash
+# Code review for pull requests
+patchpatrol review-commit --model quality --threshold 0.85 $COMMIT_SHA
+
+# Learning from historical commits
+patchpatrol review-commit --model cloud --threshold 0.6 HEAD~5
+
+# Audit commit quality over time
+for sha in $(git log --format="%h" -10); do
+  patchpatrol review-commit --model ci $sha
+done
+
+# Review a merge commit
+patchpatrol review-commit --model granite-8b-code --threshold 0.9 HEAD
+```
+
+**Note:** Historical commit reviews always run in "soft mode" (non-blocking) since they're used for analysis rather than enforcement.
 
 ### Pre-commit Integration
 
@@ -491,6 +550,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch full history for commit review
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
@@ -500,6 +561,18 @@ jobs:
 
       - name: Review Changes
         run: patchpatrol review-changes --model ci --hard
+
+      - name: Review Recent Commits
+        run: |
+          # Review the last 3 commits for quality assessment
+          for sha in $(git log --format="%h" -3); do
+            echo "Reviewing commit $sha..."
+            patchpatrol review-commit --model ci $sha
+          done
+
+      - name: Review Specific Commit (if specified)
+        if: github.event.inputs.commit_sha
+        run: patchpatrol review-commit --model quality --threshold 0.8 ${{ github.event.inputs.commit_sha }}
 ```
 
 ### GitLab CI
@@ -513,6 +586,23 @@ ai_review:
     - patchpatrol review-changes --model ci --hard
   only:
     - merge_requests
+
+commit_audit:
+  stage: test
+  image: python:3.11
+  script:
+    - pip install patchpatrol[llama]
+    # Review commits in the merge request
+    - |
+      if [ -n "$CI_MERGE_REQUEST_TARGET_BRANCH_SHA" ]; then
+        for sha in $(git log --format="%h" ${CI_MERGE_REQUEST_TARGET_BRANCH_SHA}..HEAD); do
+          echo "Auditing commit $sha..."
+          patchpatrol review-commit --model ci $sha
+        done
+      fi
+  only:
+    - merge_requests
+  allow_failure: true  # Don't fail pipeline on audit issues
 ```
 
 ### Jenkins

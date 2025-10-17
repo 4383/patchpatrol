@@ -501,6 +501,74 @@ class TestReviewCommands:
         assert result.exit_code == 2  # Click error for missing required option
         assert "Missing option" in result.output or "--model" in result.output
 
+    @patch("patchpatrol.cli._review_commit_impl")
+    def test_review_commit_command(self, mock_impl):
+        """Test review-commit command interface."""
+        mock_impl.return_value = 0
+
+        runner = CliRunner()
+        runner.invoke(
+            main,
+            [
+                "review-commit",
+                "--model",
+                "test-model",
+                "--backend",
+                "llama",
+                "--threshold",
+                "0.8",
+                "abc123",
+            ],
+        )
+
+        mock_impl.assert_called_once()
+        args, kwargs = mock_impl.call_args
+        assert kwargs["threshold"] == 0.8
+        assert kwargs["backend"] == "llama"
+        assert kwargs["model"] == "test-model"
+        assert kwargs["commit_sha"] == "abc123"
+
+    @patch("patchpatrol.cli._review_commit_impl")
+    def test_review_commit_exception_handling(self, mock_impl):
+        """Test review-commit exception handling."""
+        mock_impl.side_effect = Exception("Test error")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            [
+                "review-commit",
+                "--model",
+                "test-model",
+                "abc123",
+            ],
+        )
+
+        assert result.exit_code == 1
+
+    def test_review_commit_required_arguments(self):
+        """Test that review-commit requires both --model and commit SHA."""
+        runner = CliRunner()
+
+        # Missing model
+        result = runner.invoke(main, ["review-commit", "abc123"])
+        assert result.exit_code == 2
+        assert "Missing option" in result.output or "--model" in result.output
+
+        # Missing commit SHA
+        result = runner.invoke(main, ["review-commit", "--model", "test-model"])
+        assert result.exit_code == 2
+        assert "Missing argument" in result.output or "commit_sha" in result.output.lower()
+
+    def test_review_commit_help(self):
+        """Test review-commit command help."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["review-commit", "--help"])
+
+        assert result.exit_code == 0
+        assert "Review a specific commit by SHA" in result.output
+        assert "COMMIT_SHA" in result.output
+
 
 class TestParameterValidation:
     """Test CLI parameter validation."""

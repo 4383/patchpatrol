@@ -107,6 +107,42 @@ Perform a holistic review considering:
 
 Return only the JSON response as specified in the system prompt."""
 
+# Template for reviewing a historical commit by SHA
+USER_TEMPLATE_COMMIT = """Review the following historical Git commit comprehensively, analyzing both the code changes and commit message.
+
+Commit Information:
+- SHA: {commit_sha}
+- Author: {author_name} <{author_email}>
+- Date: {author_date}
+- Subject: {subject}
+
+Commit Message:
+<MESSAGE>
+{message}
+</MESSAGE>
+
+Files changed: {files}
+Total lines modified: {loc}
+Minimum quality threshold: {threshold}
+
+Code Changes:
+<DIFF>
+{diff}
+</DIFF>
+
+Perform a retrospective review considering:
+1. Historical context and alignment between commit message and changes
+2. Code quality standards that should have been applied
+3. Potential issues or improvements that could have been made
+4. Documentation and test coverage considerations
+5. Breaking changes and their communication
+6. Security implications and best practices
+7. Overall impact on the codebase
+
+Note: This is a historical analysis for learning and quality assessment purposes.
+
+Return only the JSON response as specified in the system prompt."""
+
 # Configuration for prompt behavior
 PROMPT_CONFIG = {
     "max_diff_length": 200000,  # Truncate diffs longer than this

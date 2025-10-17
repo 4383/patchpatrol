@@ -357,6 +357,240 @@ class GitRepository:
 
         return info
 
+    def get_commit_diff(self, commit_sha: str, max_lines: int | None = None) -> str:
+        """
+        Get the diff for a specific commit.
+
+        Args:
+            commit_sha: The commit SHA to get diff for
+            max_lines: Maximum number of lines to return (None for unlimited)
+
+        Returns:
+            Commit diff as string
+
+        Raises:
+            GitError: If unable to get commit diff or commit doesn't exist
+        """
+        try:
+            # Validate commit SHA exists
+            self._validate_commit_sha(commit_sha)
+
+            if self._use_subprocess:
+                diff = self._run_git_command(["show", "--no-merges", commit_sha])
+            else:
+                assert self._repo is not None, "GitPython repo not initialized"
+                commit = self._repo.commit(commit_sha)
+                diff = self._repo.git.show("--no-merges", commit.hexsha)
+
+            if max_lines is not None:
+                lines = diff.split("\n")
+                if len(lines) > max_lines:
+                    diff = "\n".join(lines[:max_lines])
+                    diff += f"\n... [truncated after {max_lines} lines]"
+
+            return diff
+
+        except Exception as e:
+            logger.error(f"Failed to get commit diff for {commit_sha}: {e}")
+            raise GitError(f"Failed to get commit diff for {commit_sha}: {e}") from e
+
+    def get_commit_message_from_sha(self, commit_sha: str) -> str:
+        """
+        Get the commit message for a specific commit SHA.
+
+        Args:
+            commit_sha: The commit SHA to get message for
+
+        Returns:
+            Commit message content
+
+        Raises:
+            GitError: If unable to get commit message or commit doesn't exist
+        """
+        try:
+            # Validate commit SHA exists
+            self._validate_commit_sha(commit_sha)
+
+            if self._use_subprocess:
+                message = self._run_git_command(["log", "--format=%B", "-n", "1", commit_sha])
+            else:
+                assert self._repo is not None, "GitPython repo not initialized"
+                commit = self._repo.commit(commit_sha)
+                message = commit.message
+
+            return message.strip()
+
+        except Exception as e:
+            logger.error(f"Failed to get commit message for {commit_sha}: {e}")
+            raise GitError(f"Failed to get commit message for {commit_sha}: {e}") from e
+
+    def get_commit_files(self, commit_sha: str) -> list[str]:
+        """
+        Get list of files changed in a specific commit.
+
+        Args:
+            commit_sha: The commit SHA to get files for
+
+        Returns:
+            List of changed file paths
+
+        Raises:
+            GitError: If unable to get file list or commit doesn't exist
+        """
+        try:
+            # Validate commit SHA exists
+            self._validate_commit_sha(commit_sha)
+
+            if self._use_subprocess:
+                output = self._run_git_command(["show", "--name-only", "--format=", commit_sha])
+                files = [f.strip() for f in output.split("\n") if f.strip()]
+            else:
+                assert self._repo is not None, "GitPython repo not initialized"
+                commit = self._repo.commit(commit_sha)
+                files = []
+                if commit.parents:
+                    diffs = commit.diff(commit.parents[0])
+                    files = [item.a_path for item in diffs if item.a_path]
+                else:
+                    # Initial commit - all files are new
+                    diffs = commit.diff(None)
+                    files = [item.a_path for item in diffs if item.a_path]
+
+            return files
+
+        except Exception as e:
+            logger.error(f"Failed to get commit files for {commit_sha}: {e}")
+            raise GitError(f"Failed to get commit files for {commit_sha}: {e}") from e
+
+    def get_commit_lines_of_change(self, commit_sha: str) -> tuple[int, int]:
+        """
+        Get the number of lines added and removed in a specific commit.
+
+        Args:
+            commit_sha: The commit SHA to analyze
+
+        Returns:
+            Tuple of (lines_added, lines_removed)
+
+        Raises:
+            GitError: If unable to get line counts or commit doesn't exist
+        """
+        try:
+            # Validate commit SHA exists
+            self._validate_commit_sha(commit_sha)
+
+            if self._use_subprocess:
+                output = self._run_git_command(["show", "--numstat", "--format=", commit_sha])
+
+                lines_added = lines_removed = 0
+                for line in output.strip().split("\n"):
+                    if line:
+                        parts = line.split("\t")
+                        if len(parts) >= 2:
+                            try:
+                                added = int(parts[0]) if parts[0] != "-" else 0
+                                removed = int(parts[1]) if parts[1] != "-" else 0
+                                lines_added += added
+                                lines_removed += removed
+                            except ValueError:
+                                continue  # Skip binary files or malformed lines
+            else:
+                assert self._repo is not None, "GitPython repo not initialized"
+                commit = self._repo.commit(commit_sha)
+
+                lines_added = lines_removed = 0
+                if commit.parents:
+                    diffs = commit.diff(commit.parents[0])
+                    for diff in diffs:
+                        if diff.diff:
+                            # Parse diff manually for line counts
+                            diff_text = diff.diff.decode("utf-8", errors="ignore")
+                            for line in diff_text.split("\n"):
+                                if line.startswith("+") and not line.startswith("+++"):
+                                    lines_added += 1
+                                elif line.startswith("-") and not line.startswith("---"):
+                                    lines_removed += 1
+
+            return lines_added, lines_removed
+
+        except Exception as e:
+            logger.error(f"Failed to get line counts for {commit_sha}: {e}")
+            raise GitError(f"Failed to get line counts for {commit_sha}: {e}") from e
+
+    def get_commit_info(self, commit_sha: str) -> dict[str, Any]:
+        """
+        Get comprehensive information about a specific commit.
+
+        Args:
+            commit_sha: The commit SHA to get info for
+
+        Returns:
+            Dictionary with commit metadata
+
+        Raises:
+            GitError: If unable to get commit info or commit doesn't exist
+        """
+        try:
+            # Validate commit SHA exists
+            self._validate_commit_sha(commit_sha)
+
+            if self._use_subprocess:
+                # Get commit info in one call for efficiency
+                format_str = "%H|%h|%an|%ae|%ad|%s"
+                info_output = self._run_git_command(
+                    ["log", "--format=" + format_str, "-n", "1", commit_sha]
+                )
+                parts = info_output.strip().split("|")
+
+                info = {
+                    "full_sha": parts[0],
+                    "short_sha": parts[1],
+                    "author_name": parts[2],
+                    "author_email": parts[3],
+                    "author_date": parts[4],
+                    "subject": parts[5],
+                    "commit_sha": commit_sha,
+                }
+            else:
+                assert self._repo is not None, "GitPython repo not initialized"
+                commit = self._repo.commit(commit_sha)
+
+                info = {
+                    "full_sha": commit.hexsha,
+                    "short_sha": commit.hexsha[:8],
+                    "author_name": commit.author.name,
+                    "author_email": commit.author.email,
+                    "author_date": str(commit.authored_datetime),
+                    "subject": commit.summary,
+                    "commit_sha": commit_sha,
+                }
+
+            return info
+
+        except Exception as e:
+            logger.error(f"Failed to get commit info for {commit_sha}: {e}")
+            raise GitError(f"Failed to get commit info for {commit_sha}: {e}") from e
+
+    def _validate_commit_sha(self, commit_sha: str) -> None:
+        """
+        Validate that a commit SHA exists in the repository.
+
+        Args:
+            commit_sha: The commit SHA to validate
+
+        Raises:
+            GitError: If commit SHA doesn't exist or is invalid
+        """
+        try:
+            if self._use_subprocess:
+                self._run_git_command(["cat-file", "-e", commit_sha])
+            else:
+                assert self._repo is not None, "GitPython repo not initialized"
+                self._repo.commit(commit_sha)  # This will raise if commit doesn't exist
+
+        except Exception as e:
+            raise GitError(f"Invalid or non-existent commit SHA: {commit_sha}") from e
+
 
 # Convenience functions for common operations
 def get_staged_diff(repo_path: str | None = None, max_lines: int | None = None) -> str:
@@ -381,3 +615,35 @@ def get_lines_of_change(repo_path: str | None = None, staged_only: bool = True) 
     """Get lines added and removed."""
     repo = GitRepository(repo_path)
     return repo.get_lines_of_change(staged_only)
+
+
+def get_commit_diff(
+    commit_sha: str, repo_path: str | None = None, max_lines: int | None = None
+) -> str:
+    """Get diff for a specific commit."""
+    repo = GitRepository(repo_path)
+    return repo.get_commit_diff(commit_sha, max_lines)
+
+
+def get_commit_message_from_sha(commit_sha: str, repo_path: str | None = None) -> str:
+    """Get commit message for a specific commit SHA."""
+    repo = GitRepository(repo_path)
+    return repo.get_commit_message_from_sha(commit_sha)
+
+
+def get_commit_files(commit_sha: str, repo_path: str | None = None) -> list[str]:
+    """Get list of files changed in a specific commit."""
+    repo = GitRepository(repo_path)
+    return repo.get_commit_files(commit_sha)
+
+
+def get_commit_lines_of_change(commit_sha: str, repo_path: str | None = None) -> tuple[int, int]:
+    """Get lines added and removed in a specific commit."""
+    repo = GitRepository(repo_path)
+    return repo.get_commit_lines_of_change(commit_sha)
+
+
+def get_commit_info(commit_sha: str, repo_path: str | None = None) -> dict[str, Any]:
+    """Get comprehensive information about a specific commit."""
+    repo = GitRepository(repo_path)
+    return repo.get_commit_info(commit_sha)
